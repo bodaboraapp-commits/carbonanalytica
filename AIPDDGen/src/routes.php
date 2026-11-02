@@ -8,6 +8,7 @@ declare(strict_types=1);
  */
 
 use App\Controllers\AdminConsoleController;
+use App\Controllers\AdminDatabaseController;
 use App\Controllers\AdminTaskController;
 use App\Controllers\ApiController;
 use App\Controllers\AuthController;
@@ -28,6 +29,7 @@ $invite = new InviteController();
 $onboarding = new OnboardingController();
 $adminTasks = new AdminTaskController();
 $adminConsole = new AdminConsoleController();
+$adminDatabase = new AdminDatabaseController();
 $api = new ApiController();
 
 // Public pages.
@@ -77,6 +79,11 @@ $router->get('/admin/users', [$adminConsole, 'users']);
 $router->post('/admin/users/{id}/platform-admin', [$adminConsole, 'togglePlatformAdmin']);
 $router->get('/admin/templates', [$adminConsole, 'templates']);
 $router->get('/admin/audit', [$adminConsole, 'audit']);
+
+// Deployment: migration ledger, apply migrations, run seed (staff only).
+$router->get('/admin/database', [$adminDatabase, 'show']);
+$router->post('/admin/database/migrate', [$adminDatabase, 'migrate']);
+$router->post('/admin/database/seed', [$adminDatabase, 'seed']);
 
 // Staff review queue.
 $router->get('/admin/tasks', [$adminTasks, 'tasks']);

@@ -10,7 +10,8 @@ use PDO;
  * Sequential SQL migrations.
  *
  * A row in `schema_migrations` records every applied file, so `bin/setup.php`
- * can be re-run safely and new steps just add numbered files.
+ * and the staff console "Update database" page can both apply pending steps
+ * idempotently.
  */
 final class Migrator
 {
@@ -30,18 +31,14 @@ final class Migrator
         self::ensureTable($pdo);
 
         $applied = array_column($pdo->query('SELECT version FROM schema_migrations')->fetchAll(), 'version');
-        $files = glob(rtrim($directory, '/\\') . '/*.sql') ?: [];
-        sort($files, SORT_STRING);
-
         $newlyApplied = [];
 
-        foreach ($files as $file) {
-            $version = basename($file);
+        foreach (self::migrationFiles($directory) as $version) {
             if (in_array($version, $applied, true)) {
                 continue;
             }
 
-            $sql = (string) file_get_contents($file);
+            $sql = (string) file_get_contents(rtrim($directory, '/\\') . '/' . $version);
             foreach (self::splitStatements($sql) as $statement) {
                 $pdo->exec($statement);
             }
@@ -52,6 +49,42 @@ final class Migrator
         }
 
         return $newlyApplied;
+    }
+
+    /**
+     * Migration ledger for the admin "Update database" page.
+     *
+     * @return array{applied: list<array{version: string, applied_at: ?string}>, pending: list<string>}
+     */
+    public static function status(PDO $pdo, string $directory): array
+    {
+        self::ensureTable($pdo);
+
+        $rows = $pdo->query('SELECT version, applied_at FROM schema_migrations ORDER BY version')->fetchAll();
+        $appliedMap = [];
+        foreach ($rows as $row) {
+            $appliedMap[(string) $row['version']] = $row['applied_at'] !== null ? (string) $row['applied_at'] : null;
+        }
+
+        $applied = [];
+        $pending = [];
+        foreach (self::migrationFiles($directory) as $version) {
+            if (array_key_exists($version, $appliedMap)) {
+                $applied[] = ['version' => $version, 'applied_at' => $appliedMap[$version]];
+            } else {
+                $pending[] = $version;
+            }
+        }
+
+        return ['applied' => $applied, 'pending' => $pending];
+    }
+
+    /** @return list<string> */
+    private static function migrationFiles(string $directory): array
+    {
+        $files = glob(rtrim($directory, '/\\') . '/*.sql') ?: [];
+        sort($files, SORT_STRING);
+        return array_map('basename', $files);
     }
 
     /** @return list<string> */

@@ -105,6 +105,9 @@ $adminBadge = isset($taskBadge) ? (int) $taskBadge : 0;
         <a class="admin-tab" href="<?= e(url('/admin/audit')) ?>" <?= str_starts_with($adminPath, '/admin/audit') ? 'aria-current="page"' : '' ?>>
             <?= e(t('console.nav_audit')) ?>
         </a>
+        <a class="admin-tab" href="<?= e(url('/admin/database')) ?>" <?= str_starts_with($adminPath, '/admin/database') ? 'aria-current="page"' : '' ?>>
+            <?= e(t('console.nav_database')) ?>
+        </a>
         <a class="admin-tab" href="<?= e(url('/dashboard')) ?>"><?= e(t('admin.my_workspace')) ?></a>
     </nav>
 </header>

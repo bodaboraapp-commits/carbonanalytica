@@ -77,6 +77,10 @@ $otpOn = (int) ($user['otp_enabled'] ?? 0) === 1;
             <strong><?= e(t('console.link_tasks')) ?></strong>
             <span><?= e(t('console.link_tasks_sub', ['count' => $metrics['open_tasks']])) ?></span>
         </a>
+        <a class="quick-link" href="<?= e(url('/admin/database')) ?>">
+            <strong><?= e(t('console.link_database')) ?></strong>
+            <span><?= e(t('console.link_database_sub')) ?></span>
+        </a>
     </div>
 </section>
 

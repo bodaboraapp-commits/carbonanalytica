@@ -219,5 +219,6 @@ Out of scope for the MVP (per PRD): other registries, public template marketplac
 - [Organization onboarding](docs/organization-onboarding.md) — the 4-step verification wizard for the organization behind a workspace.
 - [Email OTP and Resend](docs/otp-email-verification.md) — one-time codes for sign-up and the sign-in second factor.
 - [Dashboards](docs/dashboards.md) — workspace Action Center (`/dashboard`) and the platform console (`/admin`).
+- [Deployment](docs/deployment.md) — live-server checklist, clean DB dump, one-click migration page.
 - [Task center](docs/task-center.md) — review queue, SLA rules and the review-task model.
 - [Open questions](docs/open-questions.md) — what the product owner needs to answer next.

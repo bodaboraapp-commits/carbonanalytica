@@ -85,6 +85,7 @@ $consolePages = @{
     '/admin/users'      = 'Users'
     '/admin/templates'  = 'Template library'
     '/admin/audit'      = 'Audit'
+    '/admin/database'   = 'Database'
 }
 foreach ($page in $consolePages.GetEnumerator()) {
     $res = Invoke-Request $page.Key -Session $staff

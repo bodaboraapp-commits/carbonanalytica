@@ -35,6 +35,7 @@ Data source: `src/Services/WorkspaceDashboardService.php`. Every number is deriv
 | `/admin/users` | Every account: name/email, workspace count, platform-admin badge, last sign-in; search + "only platform admins" filter; promote/demote platform admins |
 | `/admin/templates` | Template versions: template name, version, registry, language, parsed sections and fields, status, publish date; counts per status |
 | `/admin/audit` | Audit trail: time, actor, action, workspace, metadata; filter by action; pagination |
+| `/admin/database` | Migration ledger with **Apply pending migrations** and **Run seed** buttons, connection summary and seed readiness (staff-only deployment page) |
 | `/admin/tasks` | Review job queue (unchanged): attention counters live on the overview now; queue offers assignment, completion, filters |
 
 Data sources: `src/Services/PlatformConsoleService.php` (all pages re-check the platform-admin flag), `src/Services/TaskCenterService.php` + `src/Repositories/ReviewTaskRepository.php` for the job queue.
