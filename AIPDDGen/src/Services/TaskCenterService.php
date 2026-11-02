@@ -24,6 +24,12 @@ final class TaskCenterService
 {
     public const WORK_TYPES = ReviewTaskRepository::WORK_TYPES;
 
+    /** Types that stay on the Super Admin queue (platform-level work). */
+    public const PLATFORM_WORK_TYPES = ReviewTaskRepository::PLATFORM_WORK_TYPES;
+
+    /** Types owned by each workspace's Admin/Creator. */
+    public const WORKSPACE_WORK_TYPES = ReviewTaskRepository::WORKSPACE_WORK_TYPES;
+
     public const OPEN_STATUSES = ['unassigned', 'in_progress', 'blocked'];
 
     public const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
@@ -59,8 +65,8 @@ final class TaskCenterService
         $synced = self::syncSystemTasks($userId);
 
         return [
-            'summary' => ReviewTaskRepository::summary($userId),
-            'by_work_type' => ReviewTaskRepository::byWorkType(),
+            'summary' => ReviewTaskRepository::summaryPlatform($userId),
+            'by_work_type' => ReviewTaskRepository::byWorkTypePlatform(),
             'metrics' => ReviewTaskRepository::platformMetrics(),
             'synced' => $synced,
         ];
@@ -78,16 +84,14 @@ final class TaskCenterService
         self::syncSystemTasks($userId);
 
         $allowedScopes = ['open', 'mine', 'unassigned', 'breached', 'completed', 'all'];
-        $filters['scope'] = in_array($filters['scope'] ?? 'open', $allowedScopes, true)
-            ? $filters['scope']
-            : 'open';
-        $filters['work_type'] = in_array($filters['work_type'] ?? '', self::WORK_TYPES, true)
-            ? $filters['work_type']
-            : '';
+        $scope = (string) ($filters['scope'] ?? 'open');
+        $filters['scope'] = in_array($scope, $allowedScopes, true) ? $scope : 'open';
+        $workType = (string) ($filters['work_type'] ?? '');
+        $filters['work_type'] = in_array($workType, self::PLATFORM_WORK_TYPES, true) ? $workType : '';
         $filters['q'] = trim((string) ($filters['q'] ?? ''));
         $filters['page'] = max(1, (int) ($filters['page'] ?? 1));
 
-        $page = ReviewTaskRepository::paginate($userId, $filters, 25);
+        $page = ReviewTaskRepository::paginate($userId, $filters, 25, true);
         $perPage = 25;
         $pages = max(1, (int) ceil($page['total'] / $perPage));
 
@@ -97,8 +101,8 @@ final class TaskCenterService
             'page' => $filters['page'],
             'pages' => $pages,
             'filters' => $filters,
-            'summary' => ReviewTaskRepository::summary($userId),
-            'by_work_type' => ReviewTaskRepository::byWorkType(),
+            'summary' => ReviewTaskRepository::summaryPlatform($userId),
+            'by_work_type' => ReviewTaskRepository::byWorkTypePlatform(),
         ];
     }
 

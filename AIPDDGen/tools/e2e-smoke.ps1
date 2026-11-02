@@ -502,6 +502,11 @@ $demoLogin = Invoke-Request '/login' -Method POST -Session $demo -NoRedirect -Bo
 Check 'seeded demo account signs in' ($demoLogin.Status -eq 303 -and $demoLogin.Location -like '*/dashboard*') "status=$($demoLogin.Status) location=$($demoLogin.Location)"
 $demoDashboard = Invoke-Request '/dashboard' -Session $demo
 Check 'demo workspace lists seeded projects' ($demoDashboard.Content -match 'Kisumu Clean Cookstoves')
+Check 'workspace dashboard links to the job queue' ($demoDashboard.Content -match '/dashboard/tasks')
+$demoQueue = Invoke-Request '/dashboard/tasks' -Session $demo
+Check 'workspace admin sees the workspace job queue' ($demoQueue.Status -eq 200 -and $demoQueue.Content -match 'Job queue') "status=$($demoQueue.Status)"
+Check 'workspace queue lists workspace tasks' ($demoQueue.Content -match 'Validate project boundary|Approve fact sheet|Review draft')
+Check 'workspace queue hides platform tasks' (-not ($demoQueue.Content -match 'Review organisation documents'))
 
 Write-Output ''
 if ($script:failures.Count -eq 0) {

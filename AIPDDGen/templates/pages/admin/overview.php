@@ -11,12 +11,127 @@ declare(strict_types=1);
  */
 
 $metrics = $overview['metrics'];
+$trends = $overview['trends'] ?? [];
 $system = $overview['system'];
 $settings = $overview['settings'];
 $plans = $overview['plans'];
 $otpOn = (int) ($user['otp_enabled'] ?? 0) === 1;
 $maintenanceOn = ($settings['maintenance_mode'] ?? '0') === '1';
 $signupsOn = ($settings['signups_enabled'] ?? '1') === '1';
+
+/**
+ * Polyline points for a decorative sparkline built from a real series.
+ * The series is min/max scaled into a 100x32 viewBox with vertical padding;
+ * a flat series sits on the midline instead of dividing by zero.
+ *
+ * @param list<int> $series
+ */
+$sparklinePoints = static function (array $series): string {
+    $count = count($series);
+    if ($count === 0) {
+        return '';
+    }
+
+    $values = array_values($series);
+    $min = min($values);
+    $max = max($values);
+    $range = $max - $min;
+    $stepX = $count > 1 ? 100 / ($count - 1) : 0;
+
+    $points = [];
+    foreach ($values as $index => $value) {
+        $x = round($index * $stepX, 2);
+        $y = $range === 0 ? 16.0 : round(3 + (26 * (1 - (($value - $min) / $range))), 2);
+        $points[] = $x . ',' . $y;
+    }
+
+    return implode(' ', $points);
+};
+
+/**
+ * Trend foot state: real percent change, 0% flat, or "New" when the previous
+ * seven days had no rows (delta is null, so no percentage is invented).
+ *
+ * @param array{series?: list<int>, delta?: int|null} $trend
+ * @return array{class: string, text: string, arrow: string}
+ */
+$deltaState = static function (array $trend): array {
+    $delta = $trend['delta'] ?? null;
+    if ($delta === null) {
+        return ['class' => 'is-new', 'text' => 'New', 'arrow' => ''];
+    }
+    if ($delta === 0) {
+        return ['class' => 'is-flat', 'text' => '0% in 7 days', 'arrow' => 'flat'];
+    }
+
+    return [
+        'class' => $delta > 0 ? 'is-up' : 'is-down',
+        'text' => ($delta > 0 ? '+' : '') . $delta . '% in 7 days',
+        'arrow' => $delta > 0 ? 'up' : 'down',
+    ];
+};
+
+/** Decorative inline-SVG arrow for the trend foot (decorative: aria-hidden). */
+$deltaArrow = static function (string $arrow): string {
+    $stroke = 'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
+
+    return match ($arrow) {
+        'up' => '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 12.5V3.5M4.2 7.3 8 3.5l3.8 3.8" ' . $stroke . '/></svg>',
+        'down' => '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 3.5v9M4.2 8.7 8 12.5l3.8-3.8" ' . $stroke . '/></svg>',
+        'flat' => '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 8h9" ' . $stroke . '/></svg>',
+        default => '',
+    };
+};
+
+/** Inline line icon for the stat-card chip (decorative: aria-hidden). */
+$statIcon = static function (string $name): string {
+    $stroke = 'fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"';
+    $paths = [
+        'workspaces' => 'M3 21h18M5 21V7l7-4 7 4v14M9.5 21v-5.5h5V21',
+        'projects' => 'M3 3v18h18M7 15l4-5 3 3 5-6',
+        'users' => 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+        'tasks' => 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2',
+    ];
+    $path = $paths[$name] ?? '';
+
+    return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="' . $path . '" ' . $stroke . '/></svg>';
+};
+
+// Four hero tiles; every trend comes from the real last-7-days series above.
+$statCards = [
+    [
+        'label' => t('super.workspaces'),
+        'value' => (string) $metrics['workspaces'],
+        'icon' => 'workspaces',
+        'tone' => 'green',
+        'trend' => $trends['workspaces'] ?? null,
+        'flag' => 0,
+    ],
+    [
+        'label' => t('super.projects'),
+        'value' => (string) $metrics['projects'],
+        'icon' => 'projects',
+        'tone' => 'blue',
+        'trend' => $trends['projects'] ?? null,
+        'flag' => 0,
+    ],
+    [
+        'label' => t('super.users'),
+        'value' => (string) $metrics['people'],
+        'icon' => 'users',
+        'tone' => 'gold',
+        'trend' => $trends['users'] ?? null,
+        'flag' => 0,
+    ],
+    [
+        'label' => t('super.open_tasks'),
+        'value' => (string) $metrics['open_tasks'],
+        'icon' => 'tasks',
+        'tone' => 'slate',
+        'trend' => $trends['tasks'] ?? null,
+        'flag' => (int) $metrics['review_breached'],
+    ],
+];
 ?>
 <div class="admin-page-head">
     <div>
@@ -30,31 +145,44 @@ $signupsOn = ($settings['signups_enabled'] ?? '1') === '1';
     </div>
 </div>
 
-<section class="kpi-grid" aria-labelledby="super-kpi-title">
+<section class="stat-grid" aria-labelledby="super-kpi-title">
     <h2 class="visually-hidden" id="super-kpi-title"><?= e(t('super.stats')) ?></h2>
-    <article class="kpi-card">
-        <span class="kpi-card__icon kpi-card__icon--green" aria-hidden="true">&#127793;</span>
-        <span class="kpi-card__label"><?= e(t('super.workspaces')) ?></span>
-        <span class="kpi-card__value"><?= e((string) $metrics['workspaces']) ?></span>
-    </article>
-    <article class="kpi-card">
-        <span class="kpi-card__icon kpi-card__icon--orange" aria-hidden="true">&#128200;</span>
-        <span class="kpi-card__label"><?= e(t('super.projects')) ?></span>
-        <span class="kpi-card__value"><?= e((string) $metrics['projects']) ?></span>
-    </article>
-    <article class="kpi-card">
-        <span class="kpi-card__icon kpi-card__icon--blue" aria-hidden="true">&#128101;</span>
-        <span class="kpi-card__label"><?= e(t('super.users')) ?></span>
-        <span class="kpi-card__value"><?= e((string) $metrics['people']) ?></span>
-    </article>
-    <article class="kpi-card">
-        <span class="kpi-card__icon kpi-card__icon--gold" aria-hidden="true">&#128203;</span>
-        <span class="kpi-card__label"><?= e(t('super.open_tasks')) ?></span>
-        <span class="kpi-card__value"><?= e((string) $metrics['open_tasks']) ?></span>
-        <?php if ($metrics['review_breached'] > 0): ?>
-            <span class="kpi-card__hint badge badge--urgent"><?= e(t('super.breached_count', ['count' => $metrics['review_breached']])) ?></span>
-        <?php endif; ?>
-    </article>
+    <?php foreach ($statCards as $card): ?>
+        <?php
+        $trend = is_array($card['trend']) ? $card['trend'] : null;
+        $series = is_array($trend['series'] ?? null) ? $trend['series'] : [];
+        $delta = $trend !== null ? $deltaState($trend) : null;
+        ?>
+        <article class="stat-card">
+            <div class="stat-card__head">
+                <span class="stat-card__icon stat-card__icon--<?= e($card['tone']) ?>" aria-hidden="true"><?= $statIcon($card['icon']) ?></span>
+                <span class="stat-card__label"><?= e($card['label']) ?></span>
+                <?php if ($card['flag'] > 0): ?>
+                    <span class="stat-card__flag badge badge--urgent"><?= e(t('super.breached_count', ['count' => $card['flag']])) ?></span>
+                <?php endif; ?>
+            </div>
+            <span class="stat-card__value"><?= e($card['value']) ?></span>
+            <?php if ($delta !== null && $series !== []): ?>
+                <div class="stat-card__foot">
+                    <span class="stat-card__delta <?= e($delta['class']) ?>">
+                        <?= $deltaArrow($delta['arrow']) ?>
+                        <span><?= e($delta['text']) ?></span>
+                    </span>
+                    <svg class="stat-card__spark" viewBox="0 0 100 32" aria-hidden="true" focusable="false">
+                        <polyline
+                            points="<?= e($sparklinePoints($series)) ?>"
+                            pathLength="100"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        />
+                    </svg>
+                </div>
+            <?php endif; ?>
+        </article>
+    <?php endforeach; ?>
 </section>
 
 <section class="panel-card" aria-labelledby="super-growth-title">

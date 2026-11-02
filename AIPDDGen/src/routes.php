@@ -18,6 +18,7 @@ use App\Controllers\OnboardingController;
 use App\Controllers\PageController;
 use App\Controllers\ProjectController;
 use App\Controllers\TeamController;
+use App\Controllers\WorkspaceTaskController;
 use App\Router;
 
 $router = new Router();
@@ -32,6 +33,7 @@ $adminTasks = new AdminTaskController();
 $adminConsole = new AdminConsoleController();
 $adminDatabase = new AdminDatabaseController();
 $deploy = new DeployController();
+$workspaceTasks = new WorkspaceTaskController();
 $api = new ApiController();
 
 // Public pages.
@@ -58,6 +60,12 @@ $router->get('/lang/{locale}', [$pages, 'switchLocale']);
 // Signed-in pages.
 $router->get('/dashboard', [$pages, 'dashboard']);
 $router->get('/projects/{id}', [$pages, 'projectShow']);
+
+// Workspace admin job queue (owner/admin only; workspace-scoped tasks).
+$router->get('/dashboard/tasks', [$workspaceTasks, 'tasks']);
+$router->post('/dashboard/tasks/{id}/assign', [$workspaceTasks, 'assign']);
+$router->post('/dashboard/tasks/{id}/unassign', [$workspaceTasks, 'unassign']);
+$router->post('/dashboard/tasks/{id}/complete', [$workspaceTasks, 'complete']);
 $router->post('/projects', [$projects, 'create']);
 $router->get('/team', [$pages, 'teamShow']);
 $router->get('/invite/{token}', [$pages, 'inviteShow']);

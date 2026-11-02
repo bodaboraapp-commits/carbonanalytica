@@ -22,8 +22,11 @@ Sections:
 4. **Workspace pipeline** — projects, fact sheets pending, drafts in review, uploaded documents.
 5. **Workspace totals** — team members, projects, drafts, confirmed facts.
 6. **Projects** — the project list plus the create form (unchanged), inline comments/description.
+7. **Team** — Admin/Creator and Staff/Workers lists, plus a **Job queue** link (`/dashboard/tasks`) with the workspace's open review-task count.
 
-Data source: `src/Services/WorkspaceDashboardService.php`. Every number is derived from `team_id = current workspace`; the service calls `Tenancy::teamForUser()` first, so it cannot be used to read another workspace. Viewers see the numbers but not the create form.
+**Workspace job queue (`/dashboard/tasks`)**: owner/admin roles only; lists this workspace's `project_validation`, `fact_sheet_review`, `draft_review` and `other` tasks with scope/type/search filters and assign-to-me / unassign / complete actions. Platform tasks (organisation KYB, template QA) are excluded — they stay in the Super Admin queue at `/admin/tasks`, which now shows only those two platform work types.
+
+Data source: `src/Services/WorkspaceDashboardService.php` (dashboard) and `src/Services/WorkspaceTaskService.php` (queue) — both call `Tenancy::teamForUser()` first, so they cannot read another workspace. Viewers see the numbers but not the create form or queue.
 
 ### Workspace people: Admin/Creator + Staff/Workers
 

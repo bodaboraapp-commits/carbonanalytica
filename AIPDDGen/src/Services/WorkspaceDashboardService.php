@@ -45,9 +45,12 @@ final class WorkspaceDashboardService
                 ? $count('SELECT COUNT(*) AS total FROM organization_documents WHERE team_id = ?')
                 : 0,
             'invitations' => $count('SELECT COUNT(*) AS total FROM team_invitations WHERE team_id = ? AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > NOW(3)'),
+            // Only workspace-scoped tasks live in the workspace queue; platform
+            // review tasks (KYB, template QA) stay with Super Admin.
             'open_review_tasks' => (int) (Db::selectOne(
                 "SELECT COUNT(*) AS total FROM review_tasks
-                 WHERE team_id = ? AND status IN ('unassigned','in_progress','blocked')",
+                 WHERE team_id = ? AND status IN ('unassigned','in_progress','blocked')
+                   AND work_type IN ('project_validation','fact_sheet_review','draft_review','other')",
                 [$teamId],
             )['total'] ?? 0),
         ];

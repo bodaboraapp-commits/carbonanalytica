@@ -65,6 +65,30 @@ return [
         assert_true(array_key_exists('recent_workspaces', $overview));
         assert_true(array_key_exists('kyc_preview', $overview));
         assert_not_null($owner['team']['id']);
+
+        // Hero stat cards read real 7-day trends: a daily series per metric and
+        // a percent change against the previous 7 days (null when the previous
+        // period is empty, so the template can show "New").
+        assert_true(array_key_exists('trends', $overview), 'overview must expose trends');
+        foreach (['users', 'projects', 'drafts', 'tasks', 'workspaces'] as $key) {
+            assert_true(array_key_exists($key, $overview['trends']), 'missing trend ' . $key);
+            $trend = $overview['trends'][$key];
+            assert_true(array_key_exists('series', $trend), $key . ' trend needs a series');
+            assert_true(is_array($trend['series']) && array_is_list($trend['series']), $key . ' series must be a list');
+            assert_true(count($trend['series']) >= 6, $key . ' series needs at least 6 daily points');
+            foreach ($trend['series'] as $index => $point) {
+                assert_true(is_int($point), $key . ' series point ' . $index . ' must be an int');
+                assert_true($point >= 0, $key . ' series point ' . $index . ' must not be negative');
+            }
+            assert_true(array_key_exists('delta', $trend), $key . ' trend needs a delta');
+            assert_true(
+                $trend['delta'] === null || is_int($trend['delta']),
+                $key . ' delta must be an int or null',
+            );
+        }
+        // Counts are real rows: this test just created accounts and teams today.
+        assert_true(array_sum($overview['trends']['users']['series']) >= 1, 'users trend must count today\'s signups');
+        assert_true(array_sum($overview['trends']['workspaces']['series']) >= 1, 'workspaces trend must count today\'s teams');
     },
 
     'workspaces list is searchable and shows KYC status' => static function (): void {

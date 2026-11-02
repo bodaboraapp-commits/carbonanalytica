@@ -22,11 +22,11 @@ function make_staff(string $email = 'staff@example.com'): array
     return $account;
 }
 
-/** @return array<string, mixed> a task created for the demo workspace */
+/** @return array<string, mixed> a platform-scoped task created for the demo workspace */
 function make_task(string $actorId, string $teamId, array $overrides = []): array
 {
     return TaskCenterService::createTask($actorId, array_merge([
-        'work_type' => 'project_validation',
+        'work_type' => 'organisation_kyb',
         'title' => 'Review something',
         'priority' => 'normal',
         'team_id' => $teamId,

@@ -393,7 +393,7 @@ return [
     'admin.kpi_people' => 'Personnes',
     'admin.kpi_open_tasks' => 'Tâches de révision ouvertes',
     'admin.job_queue' => 'File de tâches',
-    'admin.job_queue_sub' => 'Toutes les tâches de révision ouvertes, les plus urgentes d’abord.',
+    'admin.job_queue_sub' => 'Travail de révision plateforme uniquement : KYC des organisations et QA des modèles. Validation de projet, fiches de faits et brouillons sont dans la file de chaque espace.',
     'admin.filter_scope' => 'Périmètre',
     'admin.scope_open' => 'Travail ouvert',
     'admin.scope_mine' => 'Qui me sont attribuées',
@@ -781,4 +781,10 @@ return [
     'console.table_staff' => 'Personnel/Collaborateurs',
     'console.no_creator' => '—',
     'console.admins_label' => 'admin(s)',
+
+    // File de tâches de l’espace de travail.
+    'workspace.queue_title' => 'File de tâches',
+    'workspace.queue_sub' => 'Tâches de révision de cet espace : validation de projet, fiches de faits et brouillons.',
+    'workspace.queue_empty_title' => 'Aucune tâche dans la file',
+    'workspace.queue_empty_body' => 'Les nouvelles validations, révisions de fiches de faits et de brouillons apparaîtront ici.',
 ];

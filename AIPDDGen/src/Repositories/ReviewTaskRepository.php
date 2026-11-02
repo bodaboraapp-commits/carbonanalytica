@@ -27,6 +27,15 @@ final class ReviewTaskRepository
         'other',
     ];
 
+    /** Platform-scoped types: only Super Admin (staff) work on these. */
+    public const PLATFORM_WORK_TYPES = ['organisation_kyb', 'template_review'];
+
+    /** Workspace-scoped types: handled by the workspace's Admin/Creator. */
+    public const WORKSPACE_WORK_TYPES = ['project_validation', 'fact_sheet_review', 'draft_review', 'other'];
+
+    private const PLATFORM_TYPES_SQL = "'organisation_kyb','template_review'";
+    private const WORKSPACE_TYPES_SQL = "'project_validation','fact_sheet_review','draft_review','other'";
+
     private const OPEN_STATUSES = ['unassigned', 'in_progress', 'blocked'];
 
     private const BREACH_SQL = "due_at IS NOT NULL AND due_at < NOW(3) AND status IN ('unassigned','in_progress','blocked')";
@@ -54,6 +63,28 @@ final class ReviewTaskRepository
      */
     public static function summary(string $userId): array
     {
+        return self::summaryWhere($userId, '1 = 1', []);
+    }
+
+    /** Platform-scoped counters for the staff job queue. */
+    public static function summaryPlatform(string $userId): array
+    {
+        return self::summaryWhere($userId, 'work_type IN (' . self::PLATFORM_TYPES_SQL . ')', []);
+    }
+
+    /** Workspace-scoped counters for the workspace admin job queue. */
+    public static function summaryForTeam(string $userId, string $teamId): array
+    {
+        return self::summaryWhere(
+            $userId,
+            'team_id = ? AND work_type IN (' . self::WORKSPACE_TYPES_SQL . ')',
+            [$teamId],
+        );
+    }
+
+    /** @return array{assigned_to_me: int, unassigned: int, breached: int, open_total: int, completed_by_me: int} */
+    private static function summaryWhere(string $userId, string $where, array $params): array
+    {
         $row = Db::selectOne(
             "SELECT
                 SUM(CASE WHEN assigned_user_id = ? AND status IN ('unassigned','in_progress','blocked') THEN 1 ELSE 0 END) AS assigned_to_me,
@@ -61,8 +92,9 @@ final class ReviewTaskRepository
                 SUM(CASE WHEN " . self::BREACH_SQL . " THEN 1 ELSE 0 END) AS breached,
                 SUM(CASE WHEN status IN ('unassigned','in_progress','blocked') THEN 1 ELSE 0 END) AS open_total,
                 SUM(CASE WHEN status = 'completed' AND completed_by_user_id = ? THEN 1 ELSE 0 END) AS completed_by_me
-             FROM review_tasks",
-            [$userId, $userId],
+             FROM review_tasks
+             WHERE {$where}",
+            array_merge([$userId, $userId], $params),
         );
 
         return [
@@ -77,12 +109,31 @@ final class ReviewTaskRepository
     /** @return list<array{work_type: string, total: int}> */
     public static function byWorkType(): array
     {
+        return self::byWorkTypeWhere('1 = 1', []);
+    }
+
+    /** @return list<array{work_type: string, total: int}> */
+    public static function byWorkTypePlatform(): array
+    {
+        return self::byWorkTypeWhere('work_type IN (' . self::PLATFORM_TYPES_SQL . ')', []);
+    }
+
+    /** @return list<array{work_type: string, total: int}> */
+    public static function byWorkTypeForTeam(string $teamId): array
+    {
+        return self::byWorkTypeWhere('team_id = ? AND work_type IN (' . self::WORKSPACE_TYPES_SQL . ')', [$teamId]);
+    }
+
+    /** @return list<array{work_type: string, total: int}> */
+    private static function byWorkTypeWhere(string $where, array $params): array
+    {
         $rows = Db::select(
             "SELECT work_type, COUNT(*) AS total
              FROM review_tasks
-             WHERE status IN ('unassigned','in_progress','blocked')
+             WHERE {$where} AND status IN ('unassigned','in_progress','blocked')
              GROUP BY work_type
              ORDER BY total DESC, work_type ASC",
+            $params,
         );
 
         return array_map(
@@ -100,10 +151,29 @@ final class ReviewTaskRepository
      * @param array{scope?: string, work_type?: string, q?: string, page?: int} $filters
      * @return array{rows: list<array<string, mixed>>, total: int}
      */
-    public static function paginate(string $userId, array $filters, int $perPage = 25): array
+    public static function paginate(string $userId, array $filters, int $perPage = 25, bool $platformOnly = false): array
     {
-        [$where, $params] = self::buildWhere($userId, $filters);
+        [$where, $params] = self::buildWhere($userId, $filters, $platformOnly ? self::PLATFORM_WORK_TYPES : null, null);
 
+        return self::paginateQuery($where, $params, $filters, $perPage);
+    }
+
+    /**
+     * Workspace admin queue: only the caller's team and workspace work types.
+     *
+     * @param array{scope?: string, work_type?: string, q?: string, page?: int} $filters
+     * @return array{rows: list<array<string, mixed>>, total: int}
+     */
+    public static function paginateForTeam(string $userId, string $teamId, array $filters, int $perPage = 25): array
+    {
+        [$where, $params] = self::buildWhere($userId, $filters, self::WORKSPACE_WORK_TYPES, $teamId);
+
+        return self::paginateQuery($where, $params, $filters, $perPage);
+    }
+
+    /** @return array{rows: list<array<string, mixed>>, total: int} */
+    private static function paginateQuery(string $where, array $params, array $filters, int $perPage): array
+    {
         $countRow = Db::selectOne(
             "SELECT COUNT(*) AS total FROM review_tasks rt LEFT JOIN teams t ON t.id = rt.team_id WHERE {$where}",
             $params,
@@ -271,12 +341,25 @@ final class ReviewTaskRepository
 
     /**
      * @param array{scope?: string, work_type?: string, q?: string} $filters
+     * @param list<string>|null $restrictTypes when set, only these work types
      * @return array{0: string, 1: list<mixed>}
      */
-    private static function buildWhere(string $userId, array $filters): array
+    private static function buildWhere(string $userId, array $filters, ?array $restrictTypes = null, ?string $teamId = null): array
     {
         $clauses = [];
         $params = [];
+
+        if ($teamId !== null) {
+            $clauses[] = 'rt.team_id = ?';
+            $params[] = $teamId;
+        }
+
+        if ($restrictTypes !== null) {
+            $clauses[] = 'rt.work_type IN (' . implode(',', array_map(
+                static fn (string $type): string => "'" . $type . "'",
+                $restrictTypes,
+            )) . ')';
+        }
 
         $scope = (string) ($filters['scope'] ?? 'open');
         switch ($scope) {

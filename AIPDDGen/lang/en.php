@@ -393,7 +393,7 @@ return [
     'admin.kpi_people' => 'People',
     'admin.kpi_open_tasks' => 'Open review tasks',
     'admin.job_queue' => 'Job queue',
-    'admin.job_queue_sub' => 'Every open review task across workspaces, worst first.',
+    'admin.job_queue_sub' => 'Platform review work only: organisation KYC and template QA. Workspace validation, fact sheets and drafts live in each workspace\'s own queue.',
     'admin.filter_scope' => 'Scope',
     'admin.scope_open' => 'Open work',
     'admin.scope_mine' => 'Assigned to me',
@@ -781,4 +781,10 @@ return [
     'console.table_staff' => 'Staff/Workers',
     'console.no_creator' => '—',
     'console.admins_label' => 'admin(s)',
+
+    // Workspace admin job queue.
+    'workspace.queue_title' => 'Job queue',
+    'workspace.queue_sub' => 'Review tasks for this workspace: project validation, fact sheets and drafts.',
+    'workspace.queue_empty_title' => 'No tasks in the queue',
+    'workspace.queue_empty_body' => 'New validation, fact-sheet and draft reviews for this workspace will appear here.',
 ];

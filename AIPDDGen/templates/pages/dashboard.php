@@ -319,6 +319,9 @@ $canManageMembers = (bool) $workspace['can_manage_members'];
                 <a class="btn btn--secondary btn--sm" href="<?= e(url('/team')) ?>"><?= e(t('nav.team')) ?></a>
                 <?php if ($canManageMembers): ?>
                     <a class="btn btn--ghost btn--sm" href="<?= e(url('/onboarding')) ?>"><?= e(t('nav.organization')) ?></a>
+                    <a class="btn btn--ghost btn--sm" href="<?= e(url('/dashboard/tasks')) ?>">
+                        <?= e(t('workspace.queue_title')) ?><?php if (($metrics['open_review_tasks'] ?? 0) > 0): ?> (<?= e((string) $metrics['open_review_tasks']) ?>)<?php endif; ?>
+                    </a>
                 <?php endif; ?>
             </p>
         </section>

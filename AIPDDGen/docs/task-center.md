@@ -1,10 +1,19 @@
 # Review task queue and Action Center metrics
 
-The Action Center **layout** now powers the tenant-facing workspace dashboard (`/dashboard`); the staff **platform console** lives at `/admin`. See [dashboards.md](dashboards.md) for the split. This document covers the review-task model, the SLA rules and the job queue that staff use at `/admin/tasks`.
+The Action Center **layout** now powers the tenant-facing workspace dashboard (`/dashboard`); the staff **platform console** lives at `/admin`. See [dashboards.md](dashboards.md) for the split. This document covers the review-task model, the SLA rules and both queues.
 
-**URLs:** `/dashboard` (workspace Action Center) and `/admin/tasks` (staff job queue).
-**Access:** workspace dashboard = any active workspace member (tenant-scoped); job queue = platform staff only (`users.is_platform_admin = 1`), tenant accounts get **404**.
-**Schema:** migration [`0004_review_tasks.sql`](../migrations/0004_review_tasks.sql) adds `review_tasks`; the dashboard numbers come from `WorkspaceDashboardService` (tenant) and `PlatformConsoleService` (staff).
+**Task ownership (split by work type):**
+
+| Queue | URL | Types | Who |
+| --- | --- | --- | --- |
+| Workspace job queue | `/dashboard/tasks` | `project_validation`, `fact_sheet_review`, `draft_review`, `other` | Workspace **Admin/Creator** (owner/admin role); editor/viewer get 403, non-members 404 |
+| Platform review queue | `/admin/tasks` | `organisation_kyb`, `template_review` | Platform staff (`users.is_platform_admin = 1`); tenants get 404 |
+
+Workspace tasks are scoped by `team_id` (Tenancy), so one workspace's queue never leaks into another's or into the staff queue. Both queues support assign-to-me / unassign / complete; every action is audited with the workspace id.
+
+**URLs:** `/dashboard` (workspace Action Center), `/dashboard/tasks` (workspace job queue) and `/admin/tasks` (platform review queue).
+**Access:** workspace dashboard + queue = active workspace member (queue requires owner/admin); platform queue = platform staff only; tenant accounts get **404** on the console.
+**Schema:** migration [`0004_review_tasks.sql`](../migrations/0004_review_tasks.sql) adds `review_tasks`; the dashboard numbers come from `WorkspaceDashboardService` (tenant), `WorkspaceTaskService` (workspace queue) and `PlatformConsoleService` / `TaskCenterService` (staff).
 
 ---
 

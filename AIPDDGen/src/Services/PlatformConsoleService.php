@@ -66,6 +66,20 @@ final class PlatformConsoleService
             "SELECT COUNT(*) AS total FROM team_members WHERE status = 'active' AND role IN ('editor','viewer')",
         )['total'] ?? 0);
 
+        // Real last-7-days daily series + change against the previous 7 days.
+        // Every point is a row count grouped by DATE(created_at); missing days
+        // are filled with 0 so the sparkline geometry is stable. Deltas are
+        // null when the previous period had no rows, so the template can show
+        // "New" instead of inventing a percentage. `workspaces` feeds the hero
+        // workspaces tile; `drafts` is available for draft-related surfaces.
+        $trends = [
+            'users' => self::dailyTrend('users', 'deleted_at IS NULL'),
+            'projects' => self::dailyTrend('projects', 'deleted_at IS NULL'),
+            'drafts' => self::dailyTrend('drafts'),
+            'tasks' => self::dailyTrend('review_tasks'),
+            'workspaces' => self::dailyTrend('teams', 'deleted_at IS NULL'),
+        ];
+
         // System health for the control panel.
         $pendingMigrations = 0;
         try {
@@ -102,6 +116,7 @@ final class PlatformConsoleService
 
         return [
             'metrics' => $metrics,
+            'trends' => $trends,
             'system' => $system,
             'settings' => PlatformSettingsService::all(),
             'plans' => $planCounts,
@@ -111,6 +126,56 @@ final class PlatformConsoleService
             'kyc_preview' => self::kycQueue($userId)['rows'],
             'templates_preview' => self::templates($userId)['rows'],
         ];
+    }
+
+    /**
+     * Last-7-days daily row counts (oldest first, 7 ints) plus the percent
+     * change against the 7 days before that.
+     *
+     * Real data only: counts come from rows grouped by DATE(created_at) over a
+     * 14-day window; days with no rows are filled with 0. `delta` is null when
+     * the previous period had no rows at all (no percentage can be derived).
+     *
+     * @param string $table internal table literal (never user input)
+     * @param string $where internal predicate for that table (never user input)
+     * @return array{series: list<int>, delta: int|null}
+     */
+    private static function dailyTrend(string $table, string $where = '1 = 1'): array
+    {
+        $today = new \DateTimeImmutable(gmdate('Y-m-d'), new \DateTimeZone('UTC'));
+        $windowStart = $today->modify('-13 days');
+
+        $rows = Db::select(
+            "SELECT DATE(created_at) AS day, COUNT(*) AS total
+             FROM {$table}
+             WHERE {$where} AND created_at >= ?
+             GROUP BY DATE(created_at)",
+            [$windowStart->format('Y-m-d 00:00:00')],
+        );
+
+        $counts = [];
+        foreach ($rows as $row) {
+            $counts[(string) $row['day']] = (int) $row['total'];
+        }
+
+        $series = [];
+        $previousTotal = 0;
+        for ($offset = 13; $offset >= 0; $offset--) {
+            $day = $today->modify(sprintf('-%d days', $offset))->format('Y-m-d');
+            $count = $counts[$day] ?? 0;
+            if ($offset >= 7) {
+                $previousTotal += $count;
+            } else {
+                $series[] = $count;
+            }
+        }
+
+        $currentTotal = array_sum($series);
+        $delta = $previousTotal === 0
+            ? null
+            : (int) round((($currentTotal - $previousTotal) / $previousTotal) * 100);
+
+        return ['series' => $series, 'delta' => $delta];
     }
 
     private static function directorySize(string $path): int
