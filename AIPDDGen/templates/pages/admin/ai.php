@@ -16,6 +16,21 @@ declare(strict_types=1);
  * @var int $taskBadge
  */
 
+// Defensive defaults: the page can be rendered without the bench payload (e.g.
+// in a template-only test) without notices.
+$bench = is_array($bench ?? null) ? $bench : [];
+$benchResult = is_array($bench['result'] ?? null) ? $bench['result'] : null;
+$benchForm = is_array($bench['form'] ?? null) ? $bench['form'] : [];
+$benchExamples = is_array($bench['examples'] ?? null) ? $bench['examples'] : [];
+$benchRegistries = is_array($bench['registries'] ?? null) && $bench['registries'] !== [] ? $bench['registries'] : ['gold_standard', 'verra_vcs'];
+$benchMaxInput = (int) ($bench['max_input_chars'] ?? 20000);
+$benchMaxKb = (int) ($bench['max_upload_kb'] ?? 256);
+$benchBudget = (int) ($bench['budget_chars'] ?? 2000);
+$benchMaxExamples = (int) ($bench['max_examples'] ?? 3);
+$benchInput = old('input_text', (string) ($benchForm['input_text'] ?? ''));
+$benchExpected = old('expected_output', (string) ($benchForm['expected_output'] ?? ''));
+$benchRegistry = old('registry', (string) ($benchForm['registry'] ?? 'gold_standard'));
+
 $status = (string) $settings['status'];
 $badgeClass = match ($status) {
     'ready' => 'badge--normal',
@@ -25,7 +40,33 @@ $badgeClass = match ($status) {
 $maskedKey = $settings['has_stored_key'] ? '••••••••' . (string) ($settings['api_key_last4'] ?? '') : '';
 $providerValue = old('provider', (string) $settings['provider']);
 $baseUrlValue = old('base_url', (string) $settings['base_url']);
-$modelValue = old('model', (string) $settings['model']);
+
+// Model choice: curated presets for the selected provider + a custom id field.
+// If the stored model is not in the preset list we select "custom" and prefill
+// it, so an arbitrary (valid) model id is never lost on render.
+$modelPresets = \App\Services\AiEngineService::modelPresets($providerValue);
+$submittedModel = old('model', '');
+$submittedCustom = old('model_custom', '');
+$storedModel = (string) $settings['model'];
+if ($submittedModel !== '') {
+    if ($submittedModel === '__custom__') {
+        $modelSelectValue = '__custom__';
+        $modelCustomValue = $submittedCustom;
+    } elseif (in_array($submittedModel, $modelPresets, true)) {
+        $modelSelectValue = $submittedModel;
+        $modelCustomValue = $submittedCustom;
+    } else {
+        $modelSelectValue = '__custom__';
+        $modelCustomValue = $submittedModel;
+    }
+} elseif (in_array($storedModel, $modelPresets, true)) {
+    $modelSelectValue = $storedModel;
+    $modelCustomValue = '';
+} else {
+    $modelSelectValue = '__custom__';
+    $modelCustomValue = $storedModel;
+}
+
 $temperatureValue = old('temperature', (string) $settings['temperature']);
 $maxTokensValue = old('max_tokens', (string) $settings['max_tokens']);
 $skillGoldValue = old('skill_gold_standard', (string) $settings['skill_gold_standard']);
@@ -122,6 +163,184 @@ $fieldInvalid = static fn (string $field): string => isset($errors[$field]) ? 't
     </section>
 </div>
 
+<section class="panel-card" id="test-bench" aria-labelledby="ai-bench-title">
+    <div class="panel-card__head">
+        <h2 id="ai-bench-title"><?= e(t('ai.testbench_title')) ?></h2>
+        <span class="badge badge--gold"><?= e(t('ai.testbench_badge')) ?></span>
+    </div>
+    <p class="admin-muted"><?= e(t('ai.testbench_sub')) ?></p>
+
+    <div class="alert alert--info" role="note">
+        <strong><?= e(t('ai.testbench_not_finetune')) ?></strong>
+        <?= e(t('ai.testbench_not_finetune_body')) ?>
+    </div>
+
+    <?php if (isset($errors['input_text']) || isset($errors['input_file']) || isset($errors['registry']) || isset($errors['expected_output'])): ?>
+        <div class="alert alert--error" role="alert"><?= e(t('error.validation_error')) ?></div>
+    <?php endif; ?>
+
+    <form class="form" method="post" action="<?= e(url('/admin/ai/test-input')) ?>" enctype="multipart/form-data" novalidate>
+        <?= csrf_field() ?>
+
+        <div class="field">
+            <label for="bench-registry"><?= e(t('ai.testbench_registry')) ?></label>
+            <select id="bench-registry" name="registry">
+                <?php foreach ($benchRegistries as $benchRegistrySlug): ?>
+                    <option value="<?= e((string) $benchRegistrySlug) ?>" <?= $benchRegistry === $benchRegistrySlug ? 'selected' : '' ?>>
+                        <?= e((string) $benchRegistrySlug === 'gold_standard' ? t('landing.registry_gs') : t('landing.registry_vcs')) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <div class="field" data-invalid="<?= e($fieldInvalid('input_text')) ?>">
+            <label for="bench-input"><?= e(t('ai.testbench_input')) ?></label>
+            <textarea id="bench-input" name="input_text" rows="8" maxlength="<?= e((string) $benchMaxInput) ?>"
+                      placeholder="<?= e(t('ai.testbench_input_placeholder')) ?>"><?= e($benchInput) ?></textarea>
+            <span class="admin-muted small"><?= e(t('ai.testbench_input_hint', ['max' => $benchMaxInput])) ?></span>
+            <?php if (isset($errors['input_text'])): ?>
+                <span class="field__error"><?= e(form_error('input_text', $errors)) ?></span>
+            <?php endif; ?>
+        </div>
+
+        <div class="field" data-invalid="<?= e($fieldInvalid('input_file')) ?>">
+            <label for="bench-file">
+                <?= e(t('ai.testbench_file')) ?>
+                <span class="muted">(<?= e(t('common.optional')) ?>)</span>
+            </label>
+            <input id="bench-file" name="input_file" type="file" accept=".txt,.md,text/plain,text/markdown">
+            <span class="admin-muted small"><?= e(t('ai.testbench_file_hint', ['kb' => $benchMaxKb])) ?></span>
+            <?php if (isset($errors['input_file'])): ?>
+                <span class="field__error"><?= e(form_error('input_file', $errors)) ?></span>
+            <?php endif; ?>
+        </div>
+
+        <div class="field" data-invalid="<?= e($fieldInvalid('expected_output')) ?>">
+            <label for="bench-expected">
+                <?= e(t('ai.testbench_expected')) ?>
+                <span class="muted">(<?= e(t('common.optional')) ?>)</span>
+            </label>
+            <textarea id="bench-expected" name="expected_output" rows="3" maxlength="<?= e((string) $benchMaxInput) ?>"><?= e($benchExpected) ?></textarea>
+            <span class="admin-muted small"><?= e(t('ai.testbench_expected_hint')) ?></span>
+        </div>
+
+        <div class="form__actions">
+            <button class="btn" type="submit"><?= e(t('ai.testbench_run')) ?></button>
+        </div>
+    </form>
+
+    <?php if ($benchResult !== null): ?>
+        <div class="alert alert--success" role="status"><?= e(t('ai.testbench_result_notice')) ?></div>
+        <h3 class="panel-title"><?= e(t('ai.testbench_result_title')) ?></h3>
+        <dl class="meta-grid">
+            <div class="meta-item">
+                <dt><?= e(t('ai.testbench_model')) ?></dt>
+                <dd class="mono"><?= e((string) ($benchResult['model'] ?? '')) ?></dd>
+            </div>
+            <div class="meta-item">
+                <dt><?= e(t('ai.testbench_latency')) ?></dt>
+                <dd><?= e((string) ($benchResult['latency_ms'] ?? 0)) ?> ms</dd>
+            </div>
+            <div class="meta-item">
+                <dt><?= e(t('ai.testbench_chars')) ?></dt>
+                <dd><?= e((string) ($benchResult['output_chars'] ?? 0)) ?></dd>
+            </div>
+        </dl>
+        <div class="card">
+            <?= nl2br(e((string) ($benchResult['output'] ?? ''))) ?>
+        </div>
+
+        <h3 class="panel-title"><?= e(t('ai.testbench_save_title')) ?></h3>
+        <p class="admin-muted small"><?= e(t('ai.testbench_save_hint')) ?></p>
+        <form class="form" method="post" action="<?= e(url('/admin/ai/examples')) ?>">
+            <?= csrf_field() ?>
+            <input type="hidden" name="registry" value="<?= e((string) ($benchResult['registry'] ?? 'gold_standard')) ?>">
+            <input type="hidden" name="input_text" value="<?= e((string) ($benchResult['input_text'] ?? '')) ?>">
+            <input type="hidden" name="output_text" value="<?= e((string) ($benchResult['output'] ?? '')) ?>">
+            <div class="field" data-invalid="<?= e($fieldInvalid('title')) ?>">
+                <label for="bench-example-title"><?= e(t('ai.testbench_save_title_label')) ?></label>
+                <input id="bench-example-title" name="title" type="text" maxlength="160" required
+                       placeholder="<?= e(t('ai.testbench_save_title_placeholder')) ?>" value="<?= e(old('title')) ?>">
+                <?php if (isset($errors['title'])): ?>
+                    <span class="field__error"><?= e(form_error('title', $errors)) ?></span>
+                <?php endif; ?>
+            </div>
+            <div class="form__actions">
+                <button class="btn btn--secondary" type="submit"><?= e(t('ai.testbench_save_button')) ?></button>
+            </div>
+        </form>
+    <?php endif; ?>
+
+    <p class="admin-muted small"><?= e(t('ai.testbench_privacy_warning')) ?></p>
+</section>
+
+<section class="panel-card" id="examples" aria-labelledby="ai-examples-title">
+    <div class="panel-card__head">
+        <h2 id="ai-examples-title"><?= e(t('ai.examples_title')) ?></h2>
+        <span class="badge badge--neutral"><?= e(t('ai.examples_count', ['count' => count($benchExamples)])) ?></span>
+    </div>
+    <p class="admin-muted"><?= e(t('ai.examples_sub')) ?></p>
+    <p class="admin-muted small"><?= e(t('ai.examples_budget_hint', ['count' => $benchMaxExamples, 'chars' => $benchBudget])) ?></p>
+
+    <?php if ($benchExamples === []): ?>
+        <p class="admin-muted mb-0"><?= e(t('ai.examples_none')) ?></p>
+    <?php else: ?>
+        <div class="table-wrap">
+            <table class="data admin-table">
+                <caption class="visually-hidden"><?= e(t('ai.examples_title')) ?></caption>
+                <thead>
+                    <tr>
+                        <th scope="col"><?= e(t('ai.examples_table_title')) ?></th>
+                        <th scope="col"><?= e(t('ai.examples_table_registry')) ?></th>
+                        <th scope="col"><?= e(t('ai.examples_table_state')) ?></th>
+                        <th scope="col"><?= e(t('ai.examples_table_created')) ?></th>
+                        <th scope="col"><?= e(t('ai.examples_table_actions')) ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($benchExamples as $example): ?>
+                        <?php $exampleEnabled = (int) $example['enabled'] === 1; ?>
+                        <tr>
+                            <td>
+                                <strong><?= e((string) $example['title']) ?></strong>
+                                <?php if ((string) ($example['output_text'] ?? '') !== ''): ?>
+                                    <details>
+                                        <summary><?= e(t('ai.examples_preview')) ?></summary>
+                                        <p class="small muted"><?= e(t('ai.examples_preview_input')) ?></p>
+                                        <?= nl2br(e(mb_substr((string) $example['input_text'], 0, 800))) ?>
+                                        <p class="small muted"><?= e(t('ai.examples_preview_output')) ?></p>
+                                        <?= nl2br(e(mb_substr((string) $example['output_text'], 0, 800))) ?>
+                                    </details>
+                                <?php endif; ?>
+                            </td>
+                            <td><?= e($example['registry'] === 'gold_standard' ? t('landing.registry_gs') : t('landing.registry_vcs')) ?></td>
+                            <td>
+                                <span class="badge <?= $exampleEnabled ? 'badge--normal' : 'badge--neutral' ?>">
+                                    <?= e($exampleEnabled ? t('ai.examples_enabled') : t('ai.examples_disabled')) ?>
+                                </span>
+                            </td>
+                            <td class="admin-muted"><?= e(format_date((string) $example['created_at'])) ?></td>
+                            <td>
+                                <form class="inline-form" method="post" action="<?= e(url('/admin/ai/examples/' . (string) $example['id'] . '/toggle')) ?>">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="enabled" value="<?= $exampleEnabled ? '0' : '1' ?>">
+                                    <button class="btn btn--ghost btn--sm" type="submit">
+                                        <?= e($exampleEnabled ? t('ai.examples_disable') : t('ai.examples_enable')) ?>
+                                    </button>
+                                </form>
+                                <form class="inline-form" method="post" action="<?= e(url('/admin/ai/examples/' . (string) $example['id'] . '/delete')) ?>">
+                                    <?= csrf_field() ?>
+                                    <button class="btn btn--ghost btn--sm" type="submit"><?= e(t('ai.examples_delete')) ?></button>
+                                </form>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    <?php endif; ?>
+</section>
+
 <section class="panel-card" aria-labelledby="ai-settings-title">
     <div class="panel-card__head">
         <h2 id="ai-settings-title"><?= e(t('ai.settings_title')) ?></h2>
@@ -167,8 +386,22 @@ $fieldInvalid = static fn (string $field): string => isset($errors[$field]) ? 't
 
         <div class="field" data-invalid="<?= e($fieldInvalid('model')) ?>">
             <label for="ai-model"><?= e(t('ai.model')) ?></label>
-            <input id="ai-model" name="model" type="text" required maxlength="120" value="<?= e($modelValue) ?>"
-                   <?= isset($errors['model']) ? 'aria-invalid="true" aria-describedby="ai-model-hint ai-model-error"' : 'aria-describedby="ai-model-hint"' ?>>
+            <select id="ai-model" name="model"
+                    <?= isset($errors['model']) ? 'aria-invalid="true" aria-describedby="ai-model-hint ai-model-error"' : 'aria-describedby="ai-model-hint"' ?>>
+                <?php foreach ($modelPresets as $presetModel): ?>
+                    <option value="<?= e((string) $presetModel) ?>" <?= $modelSelectValue === $presetModel ? 'selected' : '' ?>>
+                        <?= e((string) $presetModel) ?>
+                    </option>
+                <?php endforeach; ?>
+                <option value="__custom__" <?= $modelSelectValue === '__custom__' ? 'selected' : '' ?>>
+                    <?= e(t('ai.model_other')) ?>
+                </option>
+            </select>
+            <label for="ai-model-custom" class="small admin-muted"><?= e(t('ai.model_custom_label')) ?></label>
+            <input id="ai-model-custom" name="model_custom" type="text" maxlength="120"
+                   value="<?= e($modelCustomValue) ?>" inputmode="text" spellcheck="false"
+                   aria-describedby="ai-model-custom-hint">
+            <span class="admin-muted small" id="ai-model-custom-hint"><?= e(t('ai.model_custom_hint')) ?></span>
             <span class="admin-muted small" id="ai-model-hint"><?= e(t('ai.model_hint')) ?></span>
             <?php if (isset($errors['model'])): ?>
                 <span class="field__error" id="ai-model-error"><?= e(form_error('model', $errors)) ?></span>
@@ -238,7 +471,10 @@ $fieldInvalid = static fn (string $field): string => isset($errors[$field]) ? 't
         <?= csrf_field() ?>
         <input type="hidden" name="provider" value="<?= e($providerValue) ?>">
         <input type="hidden" name="base_url" value="<?= e($baseUrlValue) ?>">
-        <input type="hidden" name="model" value="<?= e($modelValue) ?>">
+        <input type="hidden" name="model" value="<?= e($modelSelectValue) ?>">
+        <?php if ($modelCustomValue !== ''): ?>
+            <input type="hidden" name="model_custom" value="<?= e($modelCustomValue) ?>">
+        <?php endif; ?>
         <input type="hidden" name="temperature" value="<?= e($temperatureValue) ?>">
         <input type="hidden" name="max_tokens" value="<?= e($maxTokensValue) ?>">
         <?php if ($enabledChecked): ?><input type="hidden" name="enabled" value="1"><?php endif; ?>

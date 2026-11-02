@@ -30,21 +30,24 @@ URL/model/key.
 | Layer | File |
 | --- | --- |
 | Schema (singleton settings row) | `migrations/0009_ai_engine.sql` |
+| Schema (few-shot examples) | `migrations/0010_ai_engine_examples.sql` |
 | Deployment secrets/config | `config/config.php` → `ai_engine.*`, `.env.example` |
 | Settings + encryption + test connection | `src/Services/AiEngineService.php` |
 | OpenAI-compatible HTTP client | `src/Services/LlmClient.php` |
+| Test bench + few-shot example library | `src/Services/AiEngineTestbenchService.php` |
 | Guards, prompts, generation, draft view | `src/Services/DraftService.php` |
 | Staff console controller | `src/Controllers/AiEngineController.php` |
 | Workspace generate/view controller | `src/Controllers/DraftController.php` |
-| Routes | `src/routes.php` (`/admin/ai`, `/admin/ai/test`, `/projects/{id}/draft/generate`, `/drafts/{id}`) |
+| Routes | `src/routes.php` (`/admin/ai`, `/admin/ai/test`, `/admin/ai/test-input`, `/admin/ai/examples…`, `/projects/{id}/draft/generate`, `/drafts/{id}`) |
 | Admin page | `templates/pages/admin/ai.php` |
 | Draft page | `templates/pages/draft.php` |
 | Project page action | `templates/pages/project.php` |
-| Tests (offline) | `tests/ai_engine_test.php` |
+| Tests (offline) | `tests/ai_engine_test.php`, `tests/ai_testbench_test.php` |
 
 Request flow (staff): `GET /admin/ai` → staff guard → `AiEngineService::publicSettings()`
-(a masked view only) → `templates/pages/admin/ai.php`. Save and Test connection
-are POSTs with CSRF enforced by `public/index.php`.
+(a masked view only) + `AiEngineTestbenchService::examples()` → `templates/pages/admin/ai.php`.
+Save, Test connection, Run test and the example actions are POSTs with CSRF
+enforced by `public/index.php`.
 
 Request flow (workspace): project page → `DraftService::uiState()` (read-only
 readiness + latest draft) → POST `/projects/{id}/draft/generate` →
@@ -86,8 +89,9 @@ readiness + latest draft) → POST `/projects/{id}/draft/generate` →
 ## 3. Admin workflow (`/admin/ai`, staff only)
 
 1. **Configure the provider.** Pick a preset (it fills the suggested API root),
-   then set the base URL and model. The base URL is the API root only; the
-   client appends `/chat/completions`.
+   then choose the **model** from the curated dropdown for that provider, or
+   pick **“Other / custom model…”** and paste the exact provider model id. The
+   base URL is the API root only; the client appends `/chat/completions`.
 2. **Paste the API key.** It is validated (max length) and encrypted
    immediately. Leave the field blank to keep the stored key.
 3. **Write the SKILL.** Free-text rules per registry plus optional global
@@ -99,8 +103,11 @@ readiness + latest draft) → POST `/projects/{id}/draft/generate` →
    the first draft.
 5. **Test connection** (optional). This is the only staff action that makes a
    real provider request outside drafting. Errors are shown as translated,
-   safe messages; response bodies are never echoed.
-6. **Remove / rotate the key** with the "Remove the stored API key" checkbox.
+   safe messages **plus the sanitised provider reason** (for example
+   “model not found”); the key, headers and raw body are never shown.
+6. **Run a sample in the test bench** (below) to check the skill, then save a
+   good pair as a few-shot example.
+7. **Remove / rotate the key** with the "Remove the stored API key" checkbox.
 
 Status badges on the page:
 
@@ -117,6 +124,10 @@ containing the key):
 | --- | --- |
 | `ai_engine.settings_saved` | Every successful save (metadata: provider, model, enabled, `key_set`, `key_cleared`, which skills are set) |
 | `ai_engine.connection_tested` | Test connection, success and failure (`ok`, `error` code) |
+| `ai_engine.test_run` | Test-bench run, success and failure (registry, model, latency, character counts, error code — **never** the sample text) |
+| `ai_engine.example_saved` | A few-shot example was saved (registry, title, character counts — never the text) |
+| `ai_engine.example_enabled` / `ai_engine.example_disabled` | An example was switched on/off |
+| `ai_engine.example_deleted` | An example was deleted |
 
 Tenant accounts receive **404** on `/admin/ai` (the existing staff guard), like
 every other console page.
@@ -126,28 +137,76 @@ every other console page.
 ## 4. Provider examples
 
 The client sends `POST {base_url}/chat/completions` with
-`Authorization: Bearer <key>`, the model, messages, temperature and max_tokens —
+`Authorization: Bearer <key>`, the model, messages, temperature and a token cap —
 the standard OpenAI shape. Presets are labels only; the base URL and model
 always come from the console.
 
-| Provider | Base URL | Model example | Notes |
+### Model selection
+
+The model field is a **provider-aware dropdown** backed by
+`AiEngineService::MODEL_PRESETS` (openai, claude, deepseek, openrouter, ollama)
+plus an **“Other / custom model…”** option with a free-text id field. The
+catalogue is a convenience, not a restriction: provider catalogues change over
+time, so any exact model id can be stored. If the stored model is not in the
+dropdown, the page selects “custom” and prefills it (nothing is lost).
+
+Rules of thumb:
+
+- Store the **API model id** (`claude-haiku-4-5`, `gpt-4o-mini`,
+  `deepseek-chat`), never a display label such as “Claude Haiku 5.5”. A display
+  name is rejected by the provider (the live bug this page now prevents).
+- Changing the provider does not rewrite the stored model; pick the matching
+  model (or custom id) and save.
+- The list is static and local: rendering the page never calls the provider.
+  Use “Other / custom model…” for a model released after this list.
+
+| Provider | Base URL | Model examples | Notes |
 | --- | --- | --- | --- |
-| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` | Standard OpenAI key. |
-| Claude (Anthropic) | `https://api.anthropic.com/v1` | a current Claude model name, e.g. `claude-sonnet-4-5` | Anthropic's **OpenAI SDK compatibility layer**: same chat-completions shape, Anthropic hoists `system` messages and accepts `temperature` only in 0–1 (drafting defaults to 0.2, so leave it ≤1). Anthropic documents the layer for testing/comparison rather than production; use OpenRouter (`anthropic/claude-*`) for a production gateway if preferred — both work here. Model names come from Anthropic's model catalogue; check the console before saving. |
-| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` | OpenAI-compatible. |
-| OpenRouter | `https://openrouter.ai/api/v1` | `openai/gpt-4o-mini` | Model names include the vendor prefix (e.g. `anthropic/claude-sonnet-4.5`). |
-| Ollama (local) | `http://127.0.0.1:11434/v1` | `llama3.1` | Local model; any non-empty key works; no data leaves the machine. |
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini`, `gpt-4o`, `gpt-4.1`, `gpt-4.1-mini`, `o3-mini` | Standard OpenAI key. `o*` reasoning models automatically use `max_completion_tokens`. |
+| Claude (Anthropic) | `https://api.anthropic.com/v1` | `claude-sonnet-4-5`, `claude-opus-4-1`, `claude-haiku-4-5` | Anthropic's **OpenAI SDK compatibility layer**: same chat-completions shape, Anthropic hoists `system` messages, accepts `temperature` only in 0–1 and rejects it on the newest 5.x models (the client retries without it). Anthropic documents the layer for testing/comparison rather than production; OpenRouter (`anthropic/claude-*`) is the production-gateway alternative — both work here. |
+| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat`, `deepseek-reasoner` | OpenAI-compatible. |
+| OpenRouter | `https://openrouter.ai/api/v1` | `anthropic/claude-sonnet-4-5`, `openai/gpt-4o`, `deepseek/deepseek-chat` | Model names include the vendor prefix. |
+| Ollama (local) | `http://127.0.0.1:11434/v1` | `llama3.1`, `mistral`, `qwen2.5` | Local model; any non-empty key works; no data leaves the machine. |
 | Other gateway | operator-provided root | operator-provided | Any endpoint that implements the OpenAI chat-completions contract. |
 
 HTTP behaviour: connect timeout 10 s, request timeout `AI_ENGINE_TIMEOUT`
 (default 60 s), one retry on a 5xx or a network failure, no redirect following.
-Some current models reject the optional `temperature` parameter (Anthropic's
-newest Claude models answer HTTP 400 "`temperature` is deprecated"): the client
-retries once without temperature and keeps omitting it for that client instance,
-so one generic configuration works across models. Responses are validated
-(`choices[0].message.content`); anything else becomes a structured, user-safe
-error. The client is injectable, so tests use a mocked transport and never touch
-the network.
+The base URL is normalised before use (spaces trimmed, trailing `/` removed, an
+already-appended `/chat/completions` stripped), so a pasted full endpoint still
+works. For Anthropic hosts / `provider=claude` the request also carries
+`x-api-key` and `anthropic-version: 2023-06-01` alongside Bearer. `o1`/`o3`/`o4`
+reasoning models use `max_completion_tokens`; a provider that rejects
+`max_tokens` gets one retry with the newer field. Some current models reject the
+optional `temperature` parameter (Anthropic's newest Claude models answer HTTP
+400 "`temperature` is deprecated"): the client retries once without temperature
+and keeps omitting it for that client instance, so one generic configuration
+works across models. Responses are validated (`choices[0].message.content`).
+
+### Troubleshooting provider errors
+
+Non-2xx provider bodies are parsed for a short, safe explanation
+(`error.message` / `type` / `param` / `code`, whitespace-collapsed, truncated to
+200 characters, API keys and token-looking runs replaced with `[redacted]`).
+The admin sees the translated message **plus that detail**, for example:
+
+> The AI provider does not accept this model or base URL… Provider said: model: claude-typo
+
+| Symptom / code | Likely cause | What to do |
+| --- | --- | --- |
+| `ai_engine_llm_auth` (401/403) | Wrong/revoked key, or the key lacks the model | Re-paste the key; check the provider console. Detail often says “invalid x-api-key”. |
+| `ai_engine_llm_model` (404, or 400 mentioning the model) | Base URL points at the wrong API root, or the model id does not exist for that provider/account | Check the API root (`…/v1`) and pick the model from the dropdown or paste the exact id (never a display label). |
+| `ai_engine_llm_request` (400/422/5xx) | Invalid parameter, model mismatch, content filter, provider outage | Read the appended provider detail; adjust the model/settings or retry. |
+| `ai_engine_llm_rate_limited` (429) | Provider quota / rate limit | Wait and retry; check the provider plan. |
+| `ai_engine_llm_timeout` (408/504) | Provider slow / network | Retry; raise `AI_ENGINE_TIMEOUT` if the provider is consistently slow. |
+| `ai_engine_llm_network` | DNS/connection failure | Check the base URL and this server's network. |
+| `ai_engine_llm_response` | 2xx but unreadable/empty body | The endpoint is not really OpenAI-compatible; check the base URL. |
+| `ai_engine_base_url` | Stored base URL is not an http(s) URL | Fix the URL in the console. |
+
+Known example from this deployment: `model = "Claude Haiku  5.5"` (a display
+label) made every Anthropic call fail with a generic error; the correct id is
+`claude-haiku-4-5`. After this change the page shows the provider's own reason
+and offers the id in the model dropdown. The client is injectable, so tests use
+a mocked transport and never touch the network.
 
 ---
 
@@ -255,6 +314,9 @@ section regeneration and comments are later PRD steps (F7).
   and writes `team_id`-scoped rows; another tenant's project is a 404.
 - **Template library boundary**: skills/instruments are admin text; customer
   project facts and uploads never write into the template library.
+- **Few-shot examples**: admin-only, in-context only (no fine-tuning, no weights
+  change), never customer/personal data, never rendered to tenant accounts, and
+  injected as style guidance only — the safety rules always follow them.
 - **No model training**: the provider is called with a single request per
   section; nothing is persisted provider-side by this application beyond the
   provider's own terms.
@@ -264,26 +326,89 @@ section regeneration and comments are later PRD steps (F7).
 ## 7. Verification
 
 ```powershell
-php bin/migrate.php                 # applies 0009_ai_engine.sql (idempotent)
+php bin/migrate.php                 # applies pending migrations (0009/0010, idempotent)
 php -l src/Services/AiEngineService.php
-php bin/test.php ai_engine          # 17 tests, offline (mocked LLM transport)
+php bin/test.php ai_engine          # settings/drafting tests, offline (mocked LLM transport)
+php bin/test.php ai_testbench       # bench + few-shot examples, offline
 php bin/test.php unit_i18n          # EN/FR parity
 ```
 
 HTTP checks (dev server on port 8000): staff `GET /admin/ai` → 200 with the
-configuration form; tenant account → 404; a demo project with no registry (or no
-published template / no approved fact sheet) → clear flash refusal, never a 500.
+configuration form, a `select[name=model]` containing the provider presets plus
+the custom-model option, the Test bench panel and the examples library; tenant
+account → 404; a demo project with no registry (or no published template / no
+approved fact sheet) → clear flash refusal, never a 500; Test connection shows
+the sanitised provider reason.
 
 The tests cover: settings save/encrypt/mask, key never exposed, encryption
-round-trip and secret change, env fallback precedence, clear key, LLM retry and
-structured errors, staff guard on settings, every generation refusal, the happy
+round-trip and secret change, env fallback precedence, clear key, model presets
+and custom ids, LLM retry and structured errors, base-URL normalisation,
+Anthropic headers, reasoning-model token fields, sanitised provider details,
+staff guard on settings, every generation refusal, the happy
 path (citations, snapshot, audit, labelled draft, project status), needs-input
 when facts are missing, unsupported-number and missing-citation rejection, editor
-role requirement, cross-tenant 404s and draft version increments.
+role requirement, cross-tenant 404s and draft version increments; **and for the
+bench**: ephemeral run + audit without input text, .txt/.md validation and size
+caps, example save/enable/disable/delete with audit, prompt budget/cap, disabled
+and cross-registry examples excluded, and DraftService prompts including enabled
+examples only.
 
 ---
 
-## 8. Limitations / deferred work
+## 8. Test bench and few-shot skill examples (“train the skill”, not fine-tuning)
+
+`/admin/ai` has a **Test bench** panel below Test connection and a **Few-shot
+skill examples** library below the bench.
+
+### Test bench (ephemeral)
+
+1. Choose the registry skill (Gold Standard / Verra VCS).
+2. Paste a staff test snippet and/or upload a `.txt`/`.md` file (≤ 256 KB; no
+   PDF/Word text extraction in this MVP), optionally with expected output/notes.
+3. **Run test** sends one chat completion with the registry skill plus bench
+   instructions and shows the PDD-style output, the model and the latency.
+
+The run is **ephemeral**: it is never saved as a draft, never touches a project or
+fact sheet, and never enters the shared template library. The result lives in the
+staff session for the next page render only. The `ai_engine.test_run` audit entry
+records shape metadata only (registry, model, latency, character counts), never
+the sample text.
+
+### Few-shot examples (in-context skill tuning, NOT training)
+
+A staff member can save a reviewed input/output pair with a title for a registry.
+The library lists examples with enable/disable and delete actions.
+
+**Enabled examples are injected into future drafting prompts** for that registry:
+at most `AiEngineTestbenchService::MAX_EXAMPLES_IN_PROMPT` (3) examples, oldest
+first (by `ordinal`), capped at `MAX_EXAMPLE_PROMPT_CHARS` (2000) characters in
+total. They appear as a clearly labelled *FEW-SHOT STYLE EXAMPLES* block, and the
+non-negotiable safety rules follow them: the model is told to copy their tone,
+structure and level of detail only — never their facts, figures, names or claims.
+
+**This is explicitly not fine-tuning or model training.** No model weights
+change, no training endpoint is called and nothing is shared with other
+customers; examples only travel inside a normal prompt. It “trains the skill” by
+in-context prompt tuning, which is why the UI says “Not fine-tuning”.
+
+**Privacy:** never save customer project data, personal data or confidential
+documents as examples. Examples are staff-authored test snippets you are allowed
+to reuse; the UI repeats this warning. The feature never accepts a project id,
+and `ai_engine_examples` is separate from `inputs`/`facts` (no path for customer
+data into the example library or the template library).
+
+### Management rules
+
+- Staff only (`/admin/ai` returns 404 to tenant accounts).
+- Enable/disable and delete are audited (`ai_engine.example_*`); the audit
+  metadata never contains the example text.
+- A disabled example is not injected into prompts (tested).
+- An example for Gold Standard is never injected into a Verra prompt (tested).
+- Examples are data, not schema: adding/removing one needs no migration or deploy.
+
+---
+
+## 9. Limitations / deferred work
 
 | Deferred | Notes |
 | --- | --- |
@@ -295,5 +420,8 @@ role requirement, cross-tenant 404s and draft version increments.
 | **No streaming, token accounting or cost display** | Not in the MVP. |
 | **No RAG/embeddings** | The prompt uses confirmed facts + stored input excerpts; lexical retrieval/complete fact extraction arrive with steps 3–4. |
 | **Single provider config** | One global engine for the whole deployment (no per-workspace BYOK). |
+| **Test bench is text only** | Paste or `.txt`/`.md` upload (≤256 KB); no PDF/Word extraction (that needs a parser dependency per the no-new-runtime rule). Bench output is ephemeral and not reviewable/exported. |
+| **Few-shot examples are prompt text, not training** | Enabled examples are appended to drafting prompts (max 3 / ~2000 chars). They cannot teach new facts, and this is not fine-tuning — no weights change. Manage/curate them by hand. |
+| **No example reordering UI** | Order is creation order (`ordinal`); reorder is deferred. Enable/disable/delete are supported. |
 | **Azure-specific parameters** | `api-version` / deployment-name style endpoints are not modelled; use the OpenAI-compatible base URL. |
 | **French output** | French drafts are working drafts; the registry language is English unless agreed (labelled on the draft page). |

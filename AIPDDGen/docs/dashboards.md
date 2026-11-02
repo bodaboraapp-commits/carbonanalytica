@@ -47,10 +47,10 @@ The workspace dashboard shows a **Team** card listing both groups with names, em
 | `/admin/workspaces` | Every workspace: name/slug, KYC status (badge), members, projects, created, last activity; search + KYC filter + pagination |
 | `/admin/kyc` | Organisation profiles submitted for verification: company, workspace, status, documents, submitted date, link to the open KYB task; counts per status |
 | `/admin/users` | Every account: name/email, workspace count, platform-admin badge, created, last sign-in; search + "only platform admins" + "new users (last 7 days)" filters; promote/demote platform admins |
-| `/admin/templates` | Template versions: template name, version, registry, language, parsed sections and fields, status, publish date; counts per status |
+| `/admin/templates` | Template versions: template name, version, registry, language, parsed sections and fields, status, publish date; counts per status. The **Manage** column opens a per-version dialog to upload/replace the private source document (PDF/DOCX/MD/TXT), publish or retire the version, or delete a draft/retired version; staff-only and audited (source is never exposed as a public URL) |
 | `/admin/audit` | Audit trail in a two-column layout: **Recent activity** first (latest 5 entries, its own `recent_page` pagination), then the filterable/paginated Audit log table |
 | `/admin/system` | **System Health** (SYSTEM group): platform totals as stat cards (KYC waiting, verified organisations, published templates, documents, plan mix) above the health table (migrations, DB size, storage, disk, mail transport, environment/PHP, APP_URL) |
-| `/admin/ai` | **AI Engine** (SYSTEM group): honest placeholder — states the AI drafting engine is not configured in this deployment yet; no invented settings |
+| `/admin/ai` | **AI Engine** (SYSTEM group): staff-only LLM provider settings (OpenAI / Claude / DeepSeek / OpenRouter / Ollama presets + custom), write-only API key encrypted with AES-256-GCM (`AI_ENGINE_SECRET`), model picker with presets + custom id, per-registry drafting skills, enable switch, Test connection; drives citation-checked draft generation for Gold Standard / Verra projects |
 | `/admin/database` | Migration ledger with **Apply pending migrations** and **Run seed** buttons, connection summary and seed readiness (staff-only deployment page) |
 | `/admin/tasks` | Platform review queue: organisation KYB + template QA tasks (workspace tasks live in each workspace's own `/dashboard/tasks` queue) |
 

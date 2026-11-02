@@ -72,4 +72,58 @@
       });
     }
   }
+
+  // Template library: enhance the inline <details> manage panel into a modal.
+  // Without JavaScript the disclosure stays fully usable inline (no-JS path).
+  const manageDialog = document.getElementById("template-manage-dialog");
+  if (manageDialog && typeof manageDialog.showModal === "function") {
+    const host = manageDialog.querySelector("[data-manage-host]");
+    const closeButtons = Array.from(manageDialog.querySelectorAll("[data-dialog-close]"));
+
+    if (host) {
+      let activeDisclosure = null;
+      let activePanel = null;
+
+      const closeDialog = () => {
+        if (manageDialog.open) {
+          manageDialog.close();
+        }
+      };
+
+      const restorePanel = () => {
+        if (activeDisclosure && activePanel) {
+          activeDisclosure.appendChild(activePanel);
+          activeDisclosure.open = false;
+        }
+        activeDisclosure = null;
+        activePanel = null;
+      };
+
+      document.querySelectorAll("details[data-manage]").forEach((disclosure) => {
+        const summary = disclosure.querySelector("summary");
+        const panel = disclosure.querySelector("[data-manage-panel]");
+        if (!summary || !panel) {
+          return;
+        }
+
+        summary.addEventListener("click", (event) => {
+          if (manageDialog.open) {
+            return;
+          }
+          event.preventDefault();
+          host.appendChild(panel);
+          activeDisclosure = disclosure;
+          activePanel = panel;
+          manageDialog.showModal();
+          const firstField = panel.querySelector("input, select, button");
+          if (firstField) {
+            firstField.focus();
+          }
+        });
+      });
+
+      manageDialog.addEventListener("close", restorePanel);
+      closeButtons.forEach((button) => button.addEventListener("click", closeDialog));
+    }
+  }
 })();

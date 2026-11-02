@@ -10,6 +10,7 @@ declare(strict_types=1);
 use App\Controllers\AdminConsoleController;
 use App\Controllers\AdminDatabaseController;
 use App\Controllers\AdminTaskController;
+use App\Controllers\AdminTemplateController;
 use App\Controllers\AiEngineController;
 use App\Controllers\ApiController;
 use App\Controllers\AuthController;
@@ -33,6 +34,7 @@ $invite = new InviteController();
 $onboarding = new OnboardingController();
 $adminTasks = new AdminTaskController();
 $adminConsole = new AdminConsoleController();
+$adminTemplates = new AdminTemplateController();
 $adminDatabase = new AdminDatabaseController();
 $aiEngine = new AiEngineController();
 $drafts = new DraftController();
@@ -97,6 +99,10 @@ $router->get('/admin/users', [$adminConsole, 'users']);
 $router->post('/admin/users/{id}/platform-admin', [$adminConsole, 'togglePlatformAdmin']);
 $router->post('/admin/settings/{key}', [$adminConsole, 'toggleSetting']);
 $router->get('/admin/templates', [$adminConsole, 'templates']);
+// Template library management (staff only): source upload, publish/retire, delete.
+$router->post('/admin/templates/{id}/source', [$adminTemplates, 'uploadSource']);
+$router->post('/admin/templates/{id}/status', [$adminTemplates, 'updateStatus']);
+$router->post('/admin/templates/{id}/delete', [$adminTemplates, 'deleteVersion']);
 $router->get('/admin/audit', [$adminConsole, 'audit']);
 $router->get('/admin/system', [$adminConsole, 'system']);
 
@@ -104,6 +110,12 @@ $router->get('/admin/system', [$adminConsole, 'system']);
 $router->get('/admin/ai', [$aiEngine, 'show']);
 $router->post('/admin/ai', [$aiEngine, 'save']);
 $router->post('/admin/ai/test', [$aiEngine, 'testConnection']);
+
+// AI Engine test bench + few-shot skill examples (staff only, ephemeral runs).
+$router->post('/admin/ai/test-input', [$aiEngine, 'runTest']);
+$router->post('/admin/ai/examples', [$aiEngine, 'saveExample']);
+$router->post('/admin/ai/examples/{id}/toggle', [$aiEngine, 'toggleExample']);
+$router->post('/admin/ai/examples/{id}/delete', [$aiEngine, 'deleteExample']);
 
 // Deployment: migration ledger, apply migrations, run seed (staff only).
 $router->get('/admin/database', [$adminDatabase, 'show']);

@@ -455,8 +455,9 @@ return [
             $failing->chat($settings, $messages);
             throw new RuntimeException('Expected a 5xx failure');
         } catch (AppError $error) {
-            assert_same('ai_engine_llm_http', $error->errorCode);
+            assert_same('ai_engine_llm_request', $error->errorCode);
             assert_false(str_contains($error->getMessage(), 'sk-provider-secret-9999'), 'error leaks the key');
+            assert_false(str_contains(json_encode($error->fields), 'sk-provider-secret-9999'), 'detail leaks the key');
         }
         assert_same(2, count($failingCalls), 'two attempts before giving up');
 
@@ -542,10 +543,249 @@ return [
             $unrelated->chat($settings, $messages);
             throw new RuntimeException('Expected a request error');
         } catch (AppError $error) {
-            assert_same('ai_engine_llm_http', $error->errorCode);
+            // "model not found" is a model/base-URL problem, not a generic request failure.
+            assert_same('ai_engine_llm_model', $error->errorCode);
+            assert_contains('model not found', (string) ($error->fields['detail'] ?? ''), 'detail keeps the reason');
         }
         assert_same(1, count($unrelatedCalls), 'unrelated 4xx is not retried');
         assert_false(str_contains($error->getMessage(), 'sk-ant-temp-secret-0000'), 'error leaks the key');
+    },
+
+    'model presets are provider-aware and custom model ids round-trip' => static function (): void {
+        ai_test_use_secret();
+        $staff = ai_test_staff('model-presets-staff@example.com');
+        $staffId = (string) $staff['user']['id'];
+
+        assert_true(in_array('gpt-4o-mini', AiEngineService::modelPresets('openai'), true), 'openai preset');
+        assert_true(in_array('o3-mini', AiEngineService::modelPresets('openai'), true), 'reasoning model preset');
+        assert_true(in_array('claude-haiku-4-5', AiEngineService::modelPresets('claude'), true), 'claude preset');
+        assert_true(in_array('deepseek-reasoner', AiEngineService::modelPresets('deepseek'), true), 'deepseek preset');
+        assert_true(in_array('anthropic/claude-sonnet-4-5', AiEngineService::modelPresets('openrouter'), true), 'openrouter preset');
+        assert_same([], AiEngineService::modelPresets('other'), 'no presets for the custom provider');
+        assert_true(AiEngineService::isPresetModel('claude', 'claude-haiku-4-5'));
+        assert_false(AiEngineService::isPresetModel('claude', 'gpt-4o-mini'));
+        // Default accessor follows the stored provider (fresh row = openai).
+        assert_same(AiEngineService::modelPresets('openai'), AiEngineService::modelPresets());
+
+        // Preset save/read.
+        $saved = AiEngineService::save($staffId, [
+            'provider' => 'claude',
+            'base_url' => 'https://api.anthropic.com/v1',
+            'model' => 'claude-haiku-4-5',
+            'temperature' => '0.2',
+            'max_tokens' => '700',
+            'api_key' => 'sk-model-preset-1111',
+            'enabled' => '1',
+        ]);
+        assert_same('claude-haiku-4-5', $saved['model']);
+        assert_true(in_array('claude-haiku-4-5', $saved['model_presets'], true), 'page payload offers the preset');
+
+        // Custom save/read: model_custom wins over the "__custom__" marker.
+        $custom = AiEngineService::save($staffId, [
+            'provider' => 'claude',
+            'base_url' => 'https://api.anthropic.com/v1',
+            'model' => '__custom__',
+            'model_custom' => 'claude-experimental-2099',
+            'temperature' => '0.2',
+            'max_tokens' => '700',
+            'enabled' => '1',
+        ]);
+        assert_same('claude-experimental-2099', $custom['model']);
+        assert_same('claude-experimental-2099', (string) AiEngineService::settings()['model'], 'custom id persisted');
+        assert_false(AiEngineService::isPresetModel('claude', 'claude-experimental-2099'), 'custom id is not a preset');
+        assert_false(in_array('claude-experimental-2099', $custom['model_presets'], true), 'preset list stays curated');
+
+        // Selecting a preset ignores stale custom text (predictable saving).
+        $presetAgain = AiEngineService::save($staffId, [
+            'provider' => 'claude',
+            'base_url' => 'https://api.anthropic.com/v1',
+            'model' => 'claude-sonnet-4-5',
+            'model_custom' => 'stale-custom-value',
+            'temperature' => '0.2',
+            'max_tokens' => '700',
+            'enabled' => '1',
+        ]);
+        assert_same('claude-sonnet-4-5', $presetAgain['model']);
+
+        // Neither a preset nor a custom id: clear validation error.
+        assert_app_error('validation_error', static function () use ($staffId): void {
+            AiEngineService::save($staffId, [
+                'provider' => 'claude',
+                'base_url' => 'https://api.anthropic.com/v1',
+                'model' => '__custom__',
+                'model_custom' => '',
+                'temperature' => '0.2',
+                'max_tokens' => '700',
+            ]);
+        });
+    },
+
+    'normalises the base URL and rejects unusable ones' => static function (): void {
+        $settings = ['api_key' => 'sk-normalise-1234', 'model' => 'gpt-4o-mini', 'max_tokens' => 100];
+        $messages = [['role' => 'user', 'content' => 'hello']];
+
+        foreach ([
+            'https://api.openai.com/v1',
+            'https://api.openai.com/v1/',
+            '  https://api.openai.com/v1  ',
+            'https://api.openai.com/v1/chat/completions',
+        ] as $rawBaseUrl) {
+            $calls = [];
+            $client = ai_test_transport_client(static fn (): array => ai_test_ok_body('OK'), $calls);
+            $client->chat(array_merge($settings, ['base_url' => $rawBaseUrl]), $messages);
+            assert_same(1, count($calls), 'one request for ' . $rawBaseUrl);
+            assert_same('https://api.openai.com/v1/chat/completions', (string) $calls[0]['url'], 'normalised from ' . $rawBaseUrl);
+        }
+
+        $calls = [];
+        $client = ai_test_transport_client(static fn (): array => ai_test_ok_body('OK'), $calls);
+        try {
+            $client->chat(array_merge($settings, ['base_url' => 'api.openai.com/v1']), $messages);
+            throw new RuntimeException('Expected an invalid base URL error');
+        } catch (AppError $error) {
+            assert_same('ai_engine_base_url', $error->errorCode);
+        }
+        assert_same(0, count($calls), 'no request is made for an unusable base URL');
+    },
+
+    'sends Anthropic headers for the Claude provider' => static function (): void {
+        $messages = [['role' => 'user', 'content' => 'hello']];
+
+        $calls = [];
+        $claude = ai_test_transport_client(static fn (): array => ai_test_ok_body('OK'), $calls);
+        $claude->chat([
+            'provider' => 'claude',
+            'base_url' => 'https://api.anthropic.com/v1',
+            'api_key' => 'sk-ant-headers-7777',
+            'model' => 'claude-haiku-4-5',
+            'max_tokens' => 100,
+        ], $messages);
+        $headers = $calls[0]['headers'];
+        assert_true(in_array('x-api-key: sk-ant-headers-7777', $headers, true), 'x-api-key header for Anthropic');
+        assert_true(in_array('anthropic-version: 2023-06-01', $headers, true), 'anthropic-version header');
+        assert_true(in_array('Authorization: Bearer sk-ant-headers-7777', $headers, true), 'Bearer kept too');
+        assert_false(str_contains((string) $calls[0]['url'], 'sk-ant-headers-7777'), 'key never in the URL');
+
+        $calls = [];
+        $openai = ai_test_transport_client(static fn (): array => ai_test_ok_body('OK'), $calls);
+        $openai->chat([
+            'provider' => 'openai',
+            'base_url' => 'https://api.openai.com/v1',
+            'api_key' => 'sk-openai-8888',
+            'model' => 'gpt-4o-mini',
+            'max_tokens' => 100,
+        ], $messages);
+        $joined = implode("\n", $calls[0]['headers']);
+        assert_false(str_contains($joined, 'x-api-key:'), 'no Anthropic header for OpenAI');
+        assert_true(str_contains($joined, 'Authorization: Bearer sk-openai-8888'), 'Bearer for OpenAI');
+    },
+
+    'uses max_completion_tokens for reasoning models and retries on rejection' => static function (): void {
+        $messages = [['role' => 'user', 'content' => 'hello']];
+
+        // o-series models get the newer token field from the start.
+        $calls = [];
+        $reasoning = ai_test_transport_client(static fn (): array => ai_test_ok_body('OK'), $calls);
+        $reasoning->chat([
+            'provider' => 'openai',
+            'base_url' => 'https://api.openai.com/v1',
+            'api_key' => 'sk-o-series-1234',
+            'model' => 'o3-mini',
+            'max_tokens' => 321,
+        ], $messages);
+        $payload = json_decode((string) $calls[0]['body'], true);
+        assert_same(321, $payload['max_completion_tokens'] ?? null);
+        assert_false(array_key_exists('max_tokens', $payload), 'reasoning model never sends max_tokens');
+
+        // A provider that rejects max_tokens gets one retry with the new field.
+        $calls = [];
+        $retrying = ai_test_transport_client(static function (array $request): array {
+            $payload = json_decode((string) $request['body'], true);
+            if (is_array($payload) && array_key_exists('max_tokens', $payload)) {
+                return [
+                    'status' => 400,
+                    'body' => '{"error":{"type":"invalid_request_error","message":"Unsupported parameter: max_tokens. Use max_completion_tokens instead.","param":"max_tokens"}}',
+                ];
+            }
+
+            return ai_test_ok_body('OK');
+        }, $calls);
+        $result = $retrying->chat([
+            'provider' => 'openai',
+            'base_url' => 'https://api.openai.com/v1',
+            'api_key' => 'sk-token-retry-5678',
+            'model' => 'gpt-4o-mini',
+            'max_tokens' => 456,
+        ], $messages);
+        assert_same('OK', $result['content']);
+        assert_same(2, count($calls), 'one token-field retry');
+        $first = json_decode((string) $calls[0]['body'], true);
+        $second = json_decode((string) $calls[1]['body'], true);
+        assert_true(array_key_exists('max_tokens', $first), 'first attempt uses max_tokens');
+        assert_same(456, $second['max_completion_tokens'] ?? null);
+        assert_false(array_key_exists('max_tokens', $second), 'retry uses max_completion_tokens');
+    },
+
+    'surfaces sanitised provider details for model, auth and request errors' => static function (): void {
+        $settings = [
+            'provider' => 'openai',
+            'base_url' => 'https://api.openai.com/v1',
+            'api_key' => 'sk-detail-secret-4242',
+            'model' => 'gpt-4o-mini',
+            'max_tokens' => 100,
+        ];
+        $messages = [['role' => 'user', 'content' => 'hello']];
+
+        // 404: model / base-URL problem.
+        $calls = [];
+        $client = ai_test_transport_client(static fn (): array => [
+            'status' => 404,
+            'body' => '{"error":{"type":"not_found_error","message":"model: claude-typo"}}',
+        ], $calls);
+        try {
+            $client->chat($settings, $messages);
+            throw new RuntimeException('Expected a model error');
+        } catch (AppError $error) {
+            assert_same('ai_engine_llm_model', $error->errorCode);
+            assert_contains('model: claude-typo', (string) ($error->fields['detail'] ?? ''), 'model reason surfaced');
+        }
+        assert_same(1, count($calls), '404 is not retried');
+
+        // 401 with the key echoed in the provider body: auth + redacted detail.
+        $calls = [];
+        $client = ai_test_transport_client(static fn (): array => [
+            'status' => 401,
+            'body' => '{"error":{"type":"authentication_error","message":"invalid x-api-key sk-detail-secret-4242"}}',
+        ], $calls);
+        try {
+            $client->chat($settings, $messages);
+            throw new RuntimeException('Expected an auth error');
+        } catch (AppError $error) {
+            assert_same('ai_engine_llm_auth', $error->errorCode);
+            $detail = (string) ($error->fields['detail'] ?? '');
+            assert_contains('invalid x-api-key', $detail);
+            assert_false(str_contains($detail, 'sk-detail-secret-4242'), 'key redacted from the detail');
+            assert_contains('[redacted]', $detail);
+        }
+
+        // A generic 400 keeps a truncated, secret-free provider detail.
+        $longMessage = str_repeat('invalid parameter value ', 30);
+        $calls = [];
+        $client = ai_test_transport_client(static fn (): array => [
+            'status' => 400,
+            'body' => (string) json_encode(['error' => ['message' => $longMessage, 'param' => 'temperature']]),
+        ], $calls);
+        try {
+            $client->chat($settings, $messages);
+            throw new RuntimeException('Expected a request error');
+        } catch (AppError $error) {
+            assert_same('ai_engine_llm_request', $error->errorCode);
+            $detail = (string) ($error->fields['detail'] ?? '');
+            assert_true($detail !== '', 'detail present');
+            assert_true(mb_strlen($detail) <= 200, 'detail truncated to 200 characters');
+            assert_false(str_contains($detail, 'sk-detail-secret-4242'), 'no key in the detail');
+        }
+        assert_same(1, count($calls), '400 without token rejection is not retried');
     },
 
     'connection test is staff-only, audited and returns the model on success' => static function (): void {
@@ -567,7 +807,8 @@ return [
             AiEngineService::testConnection((string) $staff['user']['id'], $failClient);
             throw new RuntimeException('Expected the connection test to fail');
         } catch (AppError $error) {
-            assert_same('ai_engine_llm_http', $error->errorCode);
+            assert_same('ai_engine_llm_request', $error->errorCode);
+            assert_contains('down', (string) ($error->fields['detail'] ?? ''), 'provider detail is kept');
         }
         $failedAudit = Db::selectOne("SELECT * FROM audit_logs WHERE action = 'ai_engine.connection_tested' ORDER BY created_at DESC LIMIT 1");
         assert_true(str_contains((string) $failedAudit['metadata'], '"ok":false'));

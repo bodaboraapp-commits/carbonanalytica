@@ -46,6 +46,43 @@ final class AiEngineService
         'other' => '',
     ];
 
+    /**
+     * Curated, provider-aware model choices for the console dropdown.
+     *
+     * This is a convenience catalogue, not a restriction: the admin can always
+     * pick "Other / custom model…" and store any model id the provider accepts
+     * (catalogues change faster than releases). Nothing here touches the network.
+     */
+    public const MODEL_PRESETS = [
+        'openai' => ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1', 'gpt-4.1-mini', 'o3-mini'],
+        'claude' => ['claude-sonnet-4-5', 'claude-opus-4-1', 'claude-haiku-4-5'],
+        'deepseek' => ['deepseek-chat', 'deepseek-reasoner'],
+        'openrouter' => ['anthropic/claude-sonnet-4-5', 'openai/gpt-4o', 'deepseek/deepseek-chat'],
+        'ollama' => ['llama3.1', 'mistral', 'qwen2.5'],
+        'other' => [],
+    ];
+
+    /**
+     * The curated model choices for a provider (defaults to the stored provider).
+     *
+     * @return list<string>
+     */
+    public static function modelPresets(?string $provider = null): array
+    {
+        $provider ??= (string) self::settings()['provider'];
+
+        /** @var list<string> $presets */
+        $presets = self::MODEL_PRESETS[$provider] ?? [];
+
+        return $presets;
+    }
+
+    /** Is this model one of the curated choices for the provider? */
+    public static function isPresetModel(string $provider, string $model): bool
+    {
+        return in_array($model, self::modelPresets($provider), true);
+    }
+
     public const MAX_BASE_URL = 500;
     public const MAX_MODEL = 120;
     public const MAX_KEY_LENGTH = 512;
@@ -119,6 +156,7 @@ final class AiEngineService
             'updated_by_name' => $updatedByName,
             'providers' => self::PROVIDERS,
             'base_urls' => self::BASE_URLS,
+            'model_presets' => self::modelPresets((string) $row['provider']),
             'default_base_url' => (string) ($row['base_url'] ?? ''),
         ];
     }
@@ -221,7 +259,7 @@ final class AiEngineService
     /**
      * Load the settings the LLM client needs, including the decrypted key.
      *
-     * @return array{base_url: string, model: string, temperature: float, max_tokens: int, api_key: string, timeout: int}
+     * @return array{provider: string, base_url: string, model: string, temperature: float, max_tokens: int, api_key: string, timeout: int}
      */
     public static function clientSettings(): array
     {
@@ -236,6 +274,7 @@ final class AiEngineService
         }
 
         return [
+            'provider' => (string) $row['provider'],
             'base_url' => (string) $row['base_url'],
             'model' => (string) $row['model'],
             'temperature' => (float) $row['temperature'],
@@ -449,7 +488,16 @@ final class AiEngineService
             $errors['base_url'] = 'invalid_url';
         }
 
-        $model = trim((string) ($input['model'] ?? ''));
+        // Model choice: the console posts a preset via `model` and an optional
+        // custom id via `model_custom`. "Other / custom model…" wins; a preset
+        // selection ignores any stale custom text so saving is predictable.
+        $selectedModel = trim((string) ($input['model'] ?? ''));
+        $customModel = trim((string) ($input['model_custom'] ?? ''));
+        if ($selectedModel === '__custom__' || $selectedModel === '') {
+            $model = $customModel;
+        } else {
+            $model = $selectedModel;
+        }
         if ($model === '') {
             $errors['model'] = 'required';
         } elseif (mb_strlen($model) > self::MAX_MODEL) {

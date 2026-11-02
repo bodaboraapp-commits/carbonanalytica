@@ -2476,3 +2476,138 @@ a.stepper__link:hover .stepper__title { text-decoration: underline; text-underli
   text-transform: uppercase;
   color: var(--muted);
 }
+
+/* Template library: per-version Manage disclosure + dialog ----------------- */
+
+.template-manage {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.template-manage__disclosure > summary {
+  cursor: pointer;
+  list-style: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.template-manage__disclosure > summary::-webkit-details-marker { display: none; }
+.template-manage__disclosure > summary::marker { content: ""; }
+
+.template-manage__panel {
+  display: grid;
+  gap: 0.85rem;
+  min-width: min(300px, 70vw);
+  margin-top: 0.6rem;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.template-manage__title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+}
+
+.template-manage__form {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.template-manage__form > label {
+  font-size: 0.74rem;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.template-manage__form select,
+.template-manage__form input[type="file"] {
+  max-width: 100%;
+  padding: 0.42rem 0.55rem;
+  font: inherit;
+  font-size: 0.86rem;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+.template-manage__form .btn { justify-self: start; }
+
+.template-manage__check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-soft);
+}
+
+.template-manage__check input { margin-top: 0.18rem; }
+
+.template-manage__hint {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+/* Native dialog (server-rendered; opened by app.js, inline disclosure otherwise) */
+.manage-dialog {
+  width: min(560px, calc(100% - 2rem));
+  max-height: calc(100% - 2rem);
+  padding: 0;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.manage-dialog::backdrop { background: rgba(22, 33, 27, 0.5); }
+
+.manage-dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.95rem 1.1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.manage-dialog__head h2 {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.manage-dialog__body {
+  max-height: min(70vh, 640px);
+  padding: 1.05rem 1.1rem;
+  overflow: auto;
+}
+
+/* The panel is moved into the dialog at runtime; keep it flush there. */
+.manage-dialog__body .template-manage__panel {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+@media (max-width: 640px) {
+  .manage-dialog { width: calc(100% - 1rem); }
+}

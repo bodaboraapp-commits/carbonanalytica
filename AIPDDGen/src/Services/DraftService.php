@@ -559,6 +559,15 @@ final class DraftService
             $prompt .= "{$registry} GUIDANCE AND RULES (admin-managed skill):\n{$skill}\n\n";
         }
 
+        // Few-shot style examples saved by staff (in-context tuning, not
+        // fine-tuning). They illustrate tone/structure only: copying their facts
+        // into a real project would break the citation rules, so say so.
+        $examples = AiEngineTestbenchService::examplesPromptBlock((string) $project['registry']);
+        if ($examples !== '') {
+            $prompt .= "FEW-SHOT STYLE EXAMPLES (staff-reviewed samples for this registry; follow their tone, structure and level of detail ONLY — never copy facts, figures, names, locations or claims from them into this project):\n";
+            $prompt .= $examples . "\n\n";
+        }
+
         // Safety rules come last so they are the strongest instruction in context.
         $prompt .= "NON-NEGOTIABLE RULES:\n";
         $prompt .= "- Use ONLY the confirmed facts and input excerpts provided in the user message. Never invent or infer facts, figures, dates, names, locations, units or organisations.\n";

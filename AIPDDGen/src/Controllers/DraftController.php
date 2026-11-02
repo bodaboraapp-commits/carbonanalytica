@@ -47,13 +47,20 @@ final class DraftController extends Controller
             $reasonKey = $error->fields['reason_key'] ?? null;
             $params = [];
             foreach ($error->fields as $key => $value) {
-                if ($key !== 'reason_key') {
+                if ($key !== 'reason_key' && $key !== 'detail') {
                     $params[(string) $key] = (string) $value;
                 }
             }
             $message = is_string($reasonKey) && $reasonKey !== ''
                 ? t($reasonKey, $params)
                 : I18n::error($error->errorCode);
+
+            // Provider rejections carry a sanitised detail (e.g. "model not
+            // found"); show it so a failed generation is actionable.
+            $detail = $error->fields['detail'] ?? null;
+            if (is_string($detail) && $detail !== '') {
+                $message .= ' ' . t('ai.provider_detail', ['detail' => $detail]);
+            }
             $this->flash('error', $message);
             Http::redirect('/projects/' . rawurlencode($projectId));
         } catch (\Throwable $error) {
