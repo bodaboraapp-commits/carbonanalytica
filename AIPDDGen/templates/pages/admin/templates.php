@@ -63,9 +63,6 @@ $registryLabel = static function (?string $registry): string {
                         <?php
                         $versionId = (string) $row['id'];
                         $status = (string) $row['status'];
-                        $publishedLabel = $row['published_at'] !== null
-                            ? format_date((string) $row['published_at'])
-                            : t('console.not_published');
                         $manageLabel = t('template.manage_button') . ' — ' . (string) $row['template_name'] . ' ' . (string) $row['version_label'];
                         ?>
                         <tr>
@@ -81,7 +78,6 @@ $registryLabel = static function (?string $registry): string {
                             <td><span class="badge <?= e($badge($status)) ?>"><?= e(t('console.template_status_' . $status)) ?></span></td>
                             <td>
                                 <div class="template-manage">
-                                    <span class="admin-muted"><?= e($publishedLabel) ?></span>
                                     <details class="template-manage__disclosure" data-manage>
                                         <summary class="btn btn--secondary btn--sm" aria-label="<?= e($manageLabel) ?>"><?= e(t('template.manage_button')) ?></summary>
                                         <div class="template-manage__panel" data-manage-panel>

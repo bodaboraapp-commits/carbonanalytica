@@ -1,0 +1,62 @@
+/* --------------------------------------------------------------------------
+   AI Engine test bench: Run-test progress indicator.
+   Progressive enhancement only: without JavaScript the form still submits and
+   the bench result renders normally (this stylesheet is only loaded on the AI
+   Engine admin page).
+   -------------------------------------------------------------------------- */
+
+.bench-run {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+
+.bench-progress {
+  flex: 1 1 18rem;
+  display: grid;
+  gap: 0.4rem;
+  min-width: 12rem;
+}
+
+.bench-progress[hidden] {
+  display: none;
+}
+
+.bench-progress__track {
+  width: 100%;
+  height: 0.6rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg-deep);
+  border: 1px solid var(--line);
+}
+
+.bench-progress__bar {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: var(--brand);
+  transition: width 0.35s ease;
+}
+
+.bench-progress__label {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.bench-progress__label strong {
+  color: var(--ink);
+}
+
+.bench-progress__elapsed {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bench-progress__bar {
+    transition: none;
+  }
+}

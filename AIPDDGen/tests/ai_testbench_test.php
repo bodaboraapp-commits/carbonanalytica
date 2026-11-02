@@ -441,4 +441,43 @@ return [
         assert_false(str_contains($system, 'FEW-SHOT STYLE EXAMPLES'), 'disabled examples are not injected');
         assert_false(str_contains($system, 'TB-EXAMPLE-INPUT-MARKER'));
     },
+
+    'admin page renders the run-test progress UI as a CSP-safe enhancement' => static function (): void {
+        tb_use_secret();
+        $staff = tb_staff('tb-progress@example.com');
+
+        $markup = \App\View::capture('pages/admin/ai', [
+            'user' => $staff['user'],
+            'settings' => AiEngineService::publicSettings(),
+            'errors' => [],
+            'taskBadge' => 0,
+            'bench' => [
+                'result' => null,
+                'form' => [],
+                'examples' => [],
+                'registries' => AiEngineTestbenchService::REGISTRIES,
+                'max_input_chars' => AiEngineTestbenchService::MAX_INPUT_CHARS,
+                'max_upload_kb' => (int) (AiEngineTestbenchService::MAX_UPLOAD_BYTES / 1024),
+                'budget_chars' => AiEngineTestbenchService::MAX_EXAMPLE_PROMPT_CHARS,
+                'max_examples' => AiEngineTestbenchService::MAX_EXAMPLES_IN_PROMPT,
+            ],
+        ]);
+
+        // The progress indicator is progressive enhancement: hidden markup,
+        // external same-origin assets (CSP script-src/style-src 'self').
+        assert_contains('data-ai-bench-form', $markup);
+        assert_contains('id="bench-progress"', $markup);
+        assert_contains('role="status"', $markup);
+        assert_contains('data-bench-bar', $markup);
+        assert_contains('data-bench-label', $markup);
+        assert_contains('data-bench-elapsed', $markup);
+        assert_contains('data-stage-sending', $markup);
+        assert_contains('data-stage-waiting', $markup);
+        assert_contains('ai-bench.js', $markup);
+        assert_contains('ai-bench.css', $markup);
+        assert_true(str_contains($markup, 'hidden'), 'progress starts hidden until JavaScript runs');
+        assert_false(str_contains($markup, '<script>'), 'no inline script (CSP self)');
+        assert_false(str_contains($markup, '<style>'), 'no inline style (CSP self)');
+        assert_false(str_contains($markup, 'javascript:'), 'no javascript: URLs');
+    },
 ];

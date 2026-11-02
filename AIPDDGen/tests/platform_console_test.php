@@ -838,4 +838,102 @@ return [
             );
         }
     },
+
+    'growth range chips filter the growth window with real data' => static function (): void {
+        $staff = make_console_staff('console-range@example.com');
+        $userId = (string) $staff['user']['id'];
+        $capture = static function (array $overview) use ($staff): string {
+            return View::capture('pages/admin/overview', [
+                'user' => $staff['user'],
+                'overview' => $overview,
+                'taskBadge' => 0,
+            ]);
+        };
+
+        // Default range = last 7 days, matching the hero-card trend windows.
+        $default = PlatformConsoleService::overview($userId);
+        assert_same('7', $default['range'], 'overview must default to the 7-day range');
+        assert_same('day', $default['growth']['granularity']);
+        foreach (['users', 'projects', 'drafts', 'tasks'] as $key) {
+            $metric = $default['growth']['metrics'][$key];
+            assert_same(7, count($metric['series']), $key . ' growth series must have seven daily points');
+            assert_same(7, count($metric['labels']), $key . ' growth labels must match the series');
+            assert_same(array_sum($metric['series']), $metric['total'], $key . ' growth total must be the real series sum');
+            assert_true(is_int($metric['previous']) && $metric['previous'] >= 0, $key . ' previous window must be a real count');
+            assert_same($default['trends'][$key]['current'], $metric['total'], $key . ' default growth total must match the 7-day trend');
+        }
+        foreach (['active_users', 'new_users'] as $key) {
+            assert_true(array_key_exists($key, $default['growth']['strip']), 'missing range strip metric ' . $key);
+            assert_true(is_int($default['growth']['strip'][$key]), 'range strip metric ' . $key . ' must be an int');
+            assert_true($default['growth']['strip'][$key] >= 0, 'range strip metric ' . $key . ' must not be negative');
+        }
+        assert_true($default['growth']['strip']['new_users'] >= 1, 'the just-created accounts must be in the default window');
+
+        // 30 / 60 / 90 days: real daily series of the requested length.
+        foreach (['30', '60', '90'] as $range) {
+            $window = PlatformConsoleService::overview($userId, $range);
+            assert_same($range, $window['range'], 'range must be preserved for ' . $range);
+            assert_same('day', $window['growth']['granularity']);
+            foreach (['users', 'projects', 'drafts', 'tasks'] as $key) {
+                $metric = $window['growth']['metrics'][$key];
+                assert_same((int) $range, count($metric['series']), $key . ' series length must match range ' . $range);
+                assert_same((int) $range, count($metric['labels']), $key . ' labels must match range ' . $range);
+                assert_same(array_sum($metric['series']), $metric['total'], $key . ' total must be the series sum for ' . $range);
+            }
+        }
+
+        // Unknown ranges fall back to the default.
+        assert_same('7', PlatformConsoleService::overview($userId, 'bogus')['range']);
+
+        // All time (recent install): real span, daily granularity, no previous window.
+        $all = PlatformConsoleService::overview($userId, 'all');
+        assert_same('all', $all['range']);
+        assert_same('day', $all['growth']['granularity']);
+        foreach (['users', 'projects', 'drafts', 'tasks'] as $key) {
+            $metric = $all['growth']['metrics'][$key];
+            assert_true($metric['series'] !== [], $key . ' all-time series must not be empty');
+            assert_same(count($metric['series']), count($metric['labels']), $key . ' all-time labels must match the series');
+            assert_same(array_sum($metric['series']), $metric['total'], $key . ' all-time total must be the series sum');
+            assert_same(0, $metric['previous'], 'all time has no previous data window');
+        }
+
+        // Default render: five chips, one active, 7-day heading, bar panel present.
+        $markup = $capture($default);
+        assert_same(5, substr_count($markup, 'class="range-chip"'), 'overview must render five range chips');
+        assert_same(1, substr_count($markup, 'aria-current="page"'), 'exactly one range chip must be active');
+        assert_contains('range-chips', $markup, 'overview must render the range chip row');
+        assert_contains('range=30', $markup, 'range chips must link to the 30-day window');
+        assert_contains('id="growth-chart-title">' . t('super.last_7_days'), $markup, 'default heading must be the last 7 days');
+        assert_contains('class="growth-bars"', $markup, 'bar comparison must render for the 7-day range');
+
+        // 30-day render: active chip + range-specific headings.
+        $thirtyMarkup = $capture(PlatformConsoleService::overview($userId, '30'));
+        assert_same(1, preg_match('/href="[^"]*range=30"[^>]*aria-current="page"/', $thirtyMarkup), 'the 30-day chip must be active');
+        assert_contains('id="growth-chart-title">' . t('super.last_days', ['count' => '30']), $thirtyMarkup, '30-day heading must be range-specific');
+        assert_contains(t('super.compare_days', ['count' => '30']), $thirtyMarkup, 'bar heading must compare the selected window');
+        assert_contains('class="growth-bars"', $thirtyMarkup, 'bar comparison must render for the 30-day range');
+
+        // All-time render (daily): bar panel hidden, all-time heading, no 30-day strip label.
+        $allMarkup = $capture($all);
+        assert_false(str_contains($allMarkup, 'class="growth-bars"'), 'all-time view must hide the bar comparison');
+        assert_contains('id="growth-chart-title">' . t('super.all_time'), $allMarkup, 'all-time heading must be shown');
+        assert_contains(t('super.new_users'), $allMarkup, 'strip must use the range-based New users label');
+        assert_false(str_contains($allMarkup, t('super.signups_30d')), 'strip must not render the fixed 30-day label');
+
+        // A >180-day real span switches "all" to monthly buckets (still real sums).
+        $old = make_user('console-range-old@example.com');
+        Db::execute(
+            'UPDATE users SET created_at = ? WHERE id = ?',
+            [gmdate('Y-m-d H:i:s', time() - 400 * 86400), (string) $old['user']['id']],
+        );
+        $monthly = PlatformConsoleService::overview($userId, 'all');
+        assert_same('month', $monthly['growth']['granularity'], 'a long all-time span must use monthly buckets');
+        $userMetric = $monthly['growth']['metrics']['users'];
+        assert_true(count($userMetric['labels']) >= 13, 'monthly buckets must cover the whole real span');
+        assert_same(count($userMetric['series']), count($userMetric['labels']));
+        assert_same(array_sum($userMetric['series']), $userMetric['total']);
+        $monthlyMarkup = $capture($monthly);
+        assert_contains('id="growth-chart-title">' . t('super.all_time_monthly'), $monthlyMarkup, 'monthly all-time heading must say so');
+        assert_false(str_contains($monthlyMarkup, 'class="growth-bars"'), 'monthly all-time view must hide the bar comparison');
+    },
 ];

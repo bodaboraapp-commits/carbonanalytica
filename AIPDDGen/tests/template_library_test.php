@@ -339,8 +339,28 @@ return [
         assert_same(1, preg_match_all('/<th scope="col">' . preg_quote(t('console.table_manage'), '/') . '<\/th>/', $markup), 'the last table header must be Manage');
         assert_false(str_contains($markup, '<th scope="col">' . t('console.table_published') . '</th>'), 'the Published column header is gone');
 
-        // Published date stays inside the Manage cell.
-        assert_true(str_contains($markup, format_date((string) Db::selectOne('SELECT published_at FROM template_versions WHERE id = ?', [$published['version_id']])['published_at'])), 'the published date stays in the Manage cell');
+        // Publication state lives only in the Status column now: the Manage
+        // cell no longer renders a "Not published" placeholder or a date.
+        assert_false(str_contains($markup, t('console.not_published')), 'the Manage column must not show the "Not published" placeholder');
+        $publishedAt = Db::selectOne('SELECT published_at FROM template_versions WHERE id = ?', [$published['version_id']]);
+        assert_false(
+            str_contains($markup, format_date((string) $publishedAt['published_at'])),
+            'the Manage column must not show the published date',
+        );
+
+        // The Status column still renders each row's real status badge.
+        assert_same(
+            3,
+            preg_match_all('/<td><span class="badge [^"]*">([^<]*)<\/span><\/td>/', $markup, $statusCells),
+            'the Status column must render one badge per row',
+        );
+        foreach ([
+            t('console.template_status_draft'),
+            t('console.template_status_published'),
+            t('console.template_status_retired'),
+        ] as $statusLabel) {
+            assert_true(in_array($statusLabel, $statusCells[1], true), 'Status column must show ' . $statusLabel);
+        }
 
         // One disclosure panel per row plus the shared dialog shell.
         assert_same(3, substr_count($markup, 'data-manage>'), 'one Manage disclosure per template version');

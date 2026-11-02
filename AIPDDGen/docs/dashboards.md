@@ -43,7 +43,7 @@ The workspace dashboard shows a **Team** card listing both groups with names, em
 
 | Page | What it shows |
 | --- | --- |
-| `/admin` | **Super Admin dashboard**: stat cards with real 7-day deltas, trend directions + sparklines, SVG growth charts (7-day line/area + this-week-vs-previous bars) and platform controls (maintenance mode, sign-ups, two-factor) |
+| `/admin` | **Super Admin dashboard**: stat cards with real 7-day deltas, trend directions + sparklines, SVG growth charts with 7/30/60/90/All-time range chips (line/area + this-period-vs-previous bars) and platform controls (maintenance mode, sign-ups, two-factor) |
 | `/admin/workspaces` | Every workspace: name/slug, KYC status (badge), members, projects, created, last activity; search + KYC filter + pagination |
 | `/admin/kyc` | Organisation profiles submitted for verification: company, workspace, status, documents, submitted date, link to the open KYB task; counts per status |
 | `/admin/users` | Every account: name/email, workspace count, platform-admin badge, created, last sign-in; search + "only platform admins" + "new users (last 7 days)" filters; promote/demote platform admins |

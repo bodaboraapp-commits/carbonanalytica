@@ -24,7 +24,10 @@ final class AdminConsoleController extends Controller
 
         View::render('pages/admin/overview', [
             'user' => $user,
-            'overview' => PlatformConsoleService::overview((string) $user['id']),
+            'overview' => PlatformConsoleService::overview(
+                (string) $user['id'],
+                (string) (Http::queryString('range') ?? '7'),
+            ),
             'taskBadge' => PlatformConsoleService::taskBadge((string) $user['id']),
         ], 'layout_admin');
     }

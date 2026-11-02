@@ -28,8 +28,11 @@ final class PlatformConsoleService
         return TaskCenterService::assertStaff($userId);
     }
 
-    /** @return array<string, mixed> */
-    public static function overview(string $userId): array
+    /**
+     * @param string $range growth window: '7'|'30'|'60'|'90'|'all' (invalid → '7')
+     * @return array<string, mixed>
+     */
+    public static function overview(string $userId, string $range = '7'): array
     {
         self::assertStaff($userId);
 
@@ -80,6 +83,11 @@ final class PlatformConsoleService
             'workspaces' => self::dailyTrend('teams', 'deleted_at IS NULL'),
         ];
 
+        // The Growth and activity panel has its own user-selected window (range
+        // chips); the hero cards above keep the last-7-days trends untouched.
+        $range = self::normaliseGrowthRange($range);
+        $growth = self::growthAnalytics($range);
+
         // System health (its own page under SYSTEM: /admin/system).
         $system = self::buildSystem();
 
@@ -97,6 +105,8 @@ final class PlatformConsoleService
         return [
             'metrics' => $metrics,
             'trends' => $trends,
+            'range' => $range,
+            'growth' => $growth,
             'system' => $system,
             'settings' => PlatformSettingsService::all(),
             'plans' => $planCounts,
@@ -168,6 +178,164 @@ final class PlatformConsoleService
             'current' => $currentTotal,
             'previous' => $previousTotal,
             'direction' => $direction,
+        ];
+    }
+
+    /** Validate a Growth and activity range; anything unknown falls back to 7 days. */
+    private static function normaliseGrowthRange(string $range): string
+    {
+        return in_array($range, ['7', '30', '60', '90', 'all'], true) ? $range : '7';
+    }
+
+    /**
+     * Range-window growth payload for the "Growth and activity" panel.
+     *
+     * Real SQL only: per-metric counts grouped by DATE(created_at) inside the
+     * selected window (monthly buckets for "all" when the real span is longer
+     * than ~180 days), the window total, the total of the preceding
+     * equal-length window (used by the bar comparison; 0 for "all" because no
+     * earlier data window exists) and window counts for the two time-bound
+     * strip metrics. Snapshot strip metrics are handled by the template.
+     *
+     * @return array{
+     *   range: string,
+     *   granularity: 'day'|'month',
+     *   span_days: int,
+     *   metrics: array<string, array{series: list<int>, labels: list<string>, total: int, previous: int}>,
+     *   strip: array{active_users: int, new_users: int}
+     * }
+     */
+    private static function growthAnalytics(string $range): array
+    {
+        $today = new \DateTimeImmutable(gmdate('Y-m-d'), new \DateTimeZone('UTC'));
+
+        // Internal table literals only; the date bound is a prepared parameter.
+        $sources = [
+            'users' => ['table' => 'users', 'where' => 'deleted_at IS NULL'],
+            'projects' => ['table' => 'projects', 'where' => 'deleted_at IS NULL'],
+            'drafts' => ['table' => 'drafts', 'where' => '1 = 1'],
+            'tasks' => ['table' => 'review_tasks', 'where' => '1 = 1'],
+        ];
+
+        $granularity = 'day';
+        $previousWindow = null;
+        if ($range === 'all') {
+            $earliest = null;
+            foreach ($sources as $source) {
+                $row = Db::selectOne(
+                    "SELECT MIN(created_at) AS first_at FROM {$source['table']} WHERE {$source['where']}",
+                );
+                $first = $row['first_at'] ?? null;
+                if (is_string($first) && $first !== '' && ($earliest === null || $first < $earliest)) {
+                    $earliest = $first;
+                }
+            }
+            $seriesStart = $earliest !== null
+                ? new \DateTimeImmutable(substr($earliest, 0, 10), new \DateTimeZone('UTC'))
+                : $today;
+            $spanDays = (int) $seriesStart->diff($today)->days + 1;
+            $granularity = $spanDays > 180 ? 'month' : 'day';
+            $windowStart = $seriesStart->format('Y-m-d 00:00:00');
+        } else {
+            $days = (int) $range;
+            $spanDays = $days;
+            $seriesStart = $today->modify(sprintf('-%d days', $days - 1));
+            $windowStart = $seriesStart->format('Y-m-d 00:00:00');
+            $previousWindow = [
+                $today->modify(sprintf('-%d days', 2 * $days - 1))->format('Y-m-d 00:00:00'),
+                $seriesStart->format('Y-m-d 00:00:00'),
+            ];
+        }
+
+        $metrics = [];
+        foreach ($sources as $key => $source) {
+            $series = [];
+            $labels = [];
+            if ($granularity === 'month') {
+                $rows = Db::select(
+                    "SELECT DATE_FORMAT(created_at, '%Y-%m') AS bucket, COUNT(*) AS total
+                     FROM {$source['table']}
+                     WHERE {$source['where']} AND created_at >= ?
+                     GROUP BY DATE_FORMAT(created_at, '%Y-%m')",
+                    [$windowStart],
+                );
+                $counts = [];
+                foreach ($rows as $row) {
+                    $counts[(string) $row['bucket']] = (int) $row['total'];
+                }
+                $cursor = new \DateTimeImmutable($seriesStart->format('Y-m-01'), new \DateTimeZone('UTC'));
+                $lastMonth = new \DateTimeImmutable($today->format('Y-m-01'), new \DateTimeZone('UTC'));
+                while ($cursor <= $lastMonth) {
+                    $bucket = $cursor->format('Y-m');
+                    $labels[] = $bucket;
+                    $series[] = $counts[$bucket] ?? 0;
+                    $cursor = $cursor->modify('+1 month');
+                }
+            } else {
+                $rows = Db::select(
+                    "SELECT DATE(created_at) AS bucket, COUNT(*) AS total
+                     FROM {$source['table']}
+                     WHERE {$source['where']} AND created_at >= ?
+                     GROUP BY DATE(created_at)",
+                    [$windowStart],
+                );
+                $counts = [];
+                foreach ($rows as $row) {
+                    $counts[(string) $row['bucket']] = (int) $row['total'];
+                }
+                $cursor = $seriesStart;
+                while ($cursor <= $today) {
+                    $day = $cursor->format('Y-m-d');
+                    $labels[] = $day;
+                    $series[] = $counts[$day] ?? 0;
+                    $cursor = $cursor->modify('+1 day');
+                }
+            }
+
+            $previous = 0;
+            if ($previousWindow !== null) {
+                $previous = (int) (Db::selectOne(
+                    "SELECT COUNT(*) AS total FROM {$source['table']}
+                     WHERE {$source['where']} AND created_at >= ? AND created_at < ?",
+                    $previousWindow,
+                )['total'] ?? 0);
+            }
+
+            $metrics[$key] = [
+                'series' => $series,
+                'labels' => $labels,
+                'total' => array_sum($series),
+                'previous' => $previous,
+            ];
+        }
+
+        if ($range === 'all') {
+            $activeUsers = (int) (Db::selectOne(
+                'SELECT COUNT(*) AS total FROM users WHERE deleted_at IS NULL AND last_seen_at IS NOT NULL',
+            )['total'] ?? 0);
+            $newUsers = (int) (Db::selectOne(
+                'SELECT COUNT(*) AS total FROM users WHERE deleted_at IS NULL',
+            )['total'] ?? 0);
+        } else {
+            $activeUsers = (int) (Db::selectOne(
+                'SELECT COUNT(*) AS total FROM users WHERE deleted_at IS NULL AND last_seen_at >= ?',
+                [$windowStart],
+            )['total'] ?? 0);
+            $newUsers = (int) (Db::selectOne(
+                'SELECT COUNT(*) AS total FROM users WHERE deleted_at IS NULL AND created_at >= ?',
+                [$windowStart],
+            )['total'] ?? 0);
+        }
+
+        return [
+            'range' => $range,
+            'granularity' => $granularity,
+            'span_days' => $spanDays,
+            'metrics' => $metrics,
+            'strip' => [
+                'active_users' => $activeUsers,
+                'new_users' => $newUsers,
+            ],
         ];
     }
 

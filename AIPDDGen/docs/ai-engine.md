@@ -368,6 +368,14 @@ skill examples** library below the bench.
 3. **Run test** sends one chat completion with the registry skill plus bench
    instructions and shows the PDD-style output, the model and the latency.
 
+While that synchronous request is in flight, a **progress bar** (external
+`public/assets/ai-bench.js` + `ai-bench.css`, same-origin so the `self` CSP
+holds) shows staged status text — sending, waiting for the provider, taking
+longer — plus an elapsed-seconds counter, and the Run button is disabled until
+the page navigates to the result. It is **progressive enhancement only**: without
+JavaScript the form submits exactly as before, and the progress markup stays
+hidden. No server progress endpoint/polling is involved (the run is one request).
+
 The run is **ephemeral**: it is never saved as a draft, never touches a project or
 fact sheet, and never enters the shared template library. The result lives in the
 staff session for the next page render only. The `ai_engine.test_run` audit entry
@@ -388,12 +396,16 @@ structure and level of detail only — never their facts, figures, names or clai
 
 **This is explicitly not fine-tuning or model training.** No model weights
 change, no training endpoint is called and nothing is shared with other
-customers; examples only travel inside a normal prompt. It “trains the skill” by
+customers. Saved examples **are transmitted to the configured LLM provider inside
+those prompts** (inference only — the same provider that drafts the section), so
+they leave the application; they are never sent to a training service and this
+application never uses any data for training. It “trains the skill” purely by
 in-context prompt tuning, which is why the UI says “Not fine-tuning”.
 
 **Privacy:** never save customer project data, personal data or confidential
 documents as examples. Examples are staff-authored test snippets you are allowed
-to reuse; the UI repeats this warning. The feature never accepts a project id,
+to reuse and that may be sent to the configured provider whenever drafts run; the
+UI repeats this warning. The feature never accepts a project id,
 and `ai_engine_examples` is separate from `inputs`/`facts` (no path for customer
 data into the example library or the template library).
 
@@ -421,7 +433,7 @@ data into the example library or the template library).
 | **No RAG/embeddings** | The prompt uses confirmed facts + stored input excerpts; lexical retrieval/complete fact extraction arrive with steps 3–4. |
 | **Single provider config** | One global engine for the whole deployment (no per-workspace BYOK). |
 | **Test bench is text only** | Paste or `.txt`/`.md` upload (≤256 KB); no PDF/Word extraction (that needs a parser dependency per the no-new-runtime rule). Bench output is ephemeral and not reviewable/exported. |
-| **Few-shot examples are prompt text, not training** | Enabled examples are appended to drafting prompts (max 3 / ~2000 chars). They cannot teach new facts, and this is not fine-tuning — no weights change. Manage/curate them by hand. |
+| **Few-shot examples are prompt text, not training** | Enabled examples are appended to drafting prompts (max 3 / ~2000 chars) and are therefore sent to the configured LLM provider with those requests; they are not used to train or fine-tune any model and no weights change. They cannot teach new facts — manage/curate them by hand. |
 | **No example reordering UI** | Order is creation order (`ordinal`); reorder is deferred. Enable/disable/delete are supported. |
 | **Azure-specific parameters** | `api-version` / deployment-name style endpoints are not modelled; use the OpenAI-compatible base URL. |
 | **French output** | French drafts are working drafts; the registry language is English unless agreed (labelled on the draft page). |

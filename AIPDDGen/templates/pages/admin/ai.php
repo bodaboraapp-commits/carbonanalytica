@@ -179,7 +179,7 @@ $fieldInvalid = static fn (string $field): string => isset($errors[$field]) ? 't
         <div class="alert alert--error" role="alert"><?= e(t('error.validation_error')) ?></div>
     <?php endif; ?>
 
-    <form class="form" method="post" action="<?= e(url('/admin/ai/test-input')) ?>" enctype="multipart/form-data" novalidate>
+    <form class="form" method="post" action="<?= e(url('/admin/ai/test-input')) ?>" enctype="multipart/form-data" novalidate data-ai-bench-form>
         <?= csrf_field() ?>
 
         <div class="field">
@@ -225,7 +225,28 @@ $fieldInvalid = static fn (string $field): string => isset($errors[$field]) ? 't
         </div>
 
         <div class="form__actions">
-            <button class="btn" type="submit"><?= e(t('ai.testbench_run')) ?></button>
+            <button class="btn" type="submit" data-bench-submit><?= e(t('ai.testbench_run')) ?></button>
+        </div>
+
+        <?php /* Client-side progress for the synchronous run (progressive enhancement). */ ?>
+        <div class="bench-run">
+            <div class="bench-progress" id="bench-progress" role="status" aria-live="polite" hidden
+                 data-stylesheet="<?= e(asset('ai-bench.css')) ?>"
+                 data-stage-idle="<?= e(t('ai.testbench_progress_idle')) ?>"
+                 data-stage-sending="<?= e(t('ai.testbench_stage_sending')) ?>"
+                 data-stage-waiting="<?= e(t('ai.testbench_stage_waiting')) ?>"
+                 data-stage-slow="<?= e(t('ai.testbench_stage_slow')) ?>"
+                 data-stage-long="<?= e(t('ai.testbench_stage_long')) ?>">
+                <div class="bench-progress__track" aria-hidden="true">
+                    <div class="bench-progress__bar" data-bench-bar></div>
+                </div>
+                <p class="bench-progress__label">
+                    <strong><?= e(t('ai.testbench_progress_prefix')) ?></strong>
+                    <span data-bench-label><?= e(t('ai.testbench_progress_idle')) ?></span>
+                    <span class="bench-progress__elapsed" data-bench-elapsed aria-hidden="true"></span>
+                </p>
+                <p class="admin-muted small"><?= e(t('ai.testbench_progress_hint')) ?></p>
+            </div>
         </div>
     </form>
 
@@ -514,3 +535,6 @@ $fieldInvalid = static fn (string $field): string => isset($errors[$field]) ? 't
         </div>
     </form>
 </section>
+
+<?php /* Run-test progress enhancement (external, same-origin asset for CSP self). */ ?>
+<script src="<?= e(asset('ai-bench.js')) ?>" defer></script>

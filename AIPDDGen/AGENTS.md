@@ -20,7 +20,7 @@ Stack facts: no Composer, no Node/Next.js runtime, no build step. PSR-4 `App\` -
 6. **Drafts and approval.** AI output is always labelled a draft; no drafting before the fact sheet is approved; `drafts.is_labeled_draft` stays true.
 7. **Language.** English + French move together: edit `lang/en.php` and `lang/fr.php` in the same change; key parity is asserted by `tests/unit_i18n_test.php`. English is the registry language; French output is a working draft and must be labelled as such.
 8. **Templates as data.** Registry/template rules are versioned data (`template_sections.format_rules`), never hard-coded prompts. Gold Standard v1.4 headings/columns stay unchanged; dates `DD/MM/YYYY`; thousands commas + decimal point; unique figure/table IDs; non-applicable sections marked intentionally blank.
-9. **Migrations are history.** Never edit an applied migration (0001-0009 today). Add a new numbered `migrations/000N_name.sql`, additive, importable on MariaDB 10.5+ (numeric generated columns, never CHAR expressions - ADR-011).
+9. **Migrations are history.** Never edit an applied migration (0001-0010 today). Add a new numbered `migrations/000N_name.sql`, additive, importable on MariaDB 10.5+ (numeric generated columns, never CHAR expressions - ADR-011).
 10. **No new runtime layer.** No Composer, no Node, no build step, no new dependency without Lead/owner approval. Server-rendered pages first; JavaScript is progressive enhancement only.
 11. **Secrets never in the repo.** `.env.local`, `RESEND_API_KEY`, Google OAuth secrets, `DEPLOY_TOKEN` and DB credentials stay in environment files (gitignored). `.tools/` is local only.
 12. **Never weaken a guard to pass.** Do not disable tenancy, CSRF, escaping or a failing test to get unblocked. Fix the code, or stop and ask.
@@ -42,7 +42,7 @@ Stack facts: no Composer, no Node/Next.js runtime, no build step. PSR-4 `App\` -
 | `php bin/migrate.php` | Apply pending migrations only. |
 | `php bin/seed.php` | Seed methodologies, Gold Standard v1.4 structure, demo workspace and staff account. |
 | `php bin/reset.php --confirm` | Drop and rebuild the database; refuses non-`_test` names without `--confirm`. |
-| `php bin/test.php [filter]` | Test suite against `pdd_generator_test`. Baseline at time of writing: **183 tests green** (plus AI Engine/drafting tests); trust the runner summary. |
+| `php bin/test.php [filter]` | Test suite against `pdd_generator_test`. Baseline at time of writing: **204 tests green** (plus AI Engine/drafting tests); trust the runner summary. |
 | `php -l <file>` | Syntax check - the lint step for every changed PHP file. |
 | `php -S 127.0.0.1:8000 -t public public/router.php` | Built-in dev server. |
 | `powershell -File tools/e2e-smoke.ps1` | Tenant HTTP smoke test; needs the dev server on port 8000. |
@@ -61,7 +61,7 @@ The test runner truncates tables and serializes runs with a MySQL `GET_LOCK`; **
 | `src/*.php` | Gates/utilities: `Tenancy`, `Auth`, `Csrf`, `Session`, `View`, `Db`, `Migrator`, `Mailer`, `Validator`, `I18n`. | Do not duplicate these in new code. |
 | `templates/` | `layout*.php`, `pages/`, `partials/`; `pages/admin/` is the platform console. | Escape via `e()`; no-JS forms must keep working. |
 | `lang/en.php`, `lang/fr.php` | Message catalogs. | Both files in the same change. |
-| `migrations/` | Numbered SQL (0001-0009 applied). | New file only; never edit history. |
+| `migrations/` | Numbered SQL (0001-0010 applied). | New file only; never edit history. |
 | `tests/` | Procedural `*_test.php` + `helpers.php`; runner is `bin/test.php`. | Add tests for new rules, especially tenant isolation. |
 | `bin/` | CLI scripts: setup, migrate, seed, reset, test. | Change only with Ops/Lead agreement. |
 | `tools/` | `e2e-smoke.ps1`, `e2e-admin-smoke.ps1`. | Port 8000 is hardcoded. |
@@ -97,7 +97,7 @@ Write scopes are advisory and must stay disjoint. Need a file outside your scope
 ## Verification checklist
 
 - [ ] `php -l` on every changed `.php` file.
-- [ ] Targeted tests for the change, then the full suite: `php bin/test.php` - must stay green (183 baseline).
+- [ ] Targeted tests for the change, then the full suite: `php bin/test.php` - must stay green (204 baseline).
 - [ ] HTTP routes/pages/templates changed: start the dev server and run both smokes (or the affected one); report the final line.
 - [ ] `lang/en.php` + `lang/fr.php` updated together when strings change; `php bin/test.php unit_i18n` passes.
 - [ ] Schema changes: new numbered migration, applied with `php bin/migrate.php`; migration history untouched.

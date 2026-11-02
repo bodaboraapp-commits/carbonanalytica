@@ -120,7 +120,14 @@ $niceScale = static function (int $rawMax): array {
     return ['max' => $max, 'ticks' => $ticks];
 };
 
-// Last 7 calendar days (UTC), the same window as the service's trend series.
+// Selected Growth and activity window (range chips: 7 / 30 / 60 / 90 / all).
+$range = (string) ($overview['range'] ?? '7');
+$growth = is_array($overview['growth'] ?? null) ? $overview['growth'] : [];
+$growthMetrics = is_array($growth['metrics'] ?? null) ? $growth['metrics'] : [];
+$growthGranularity = ($growth['granularity'] ?? 'day') === 'month' ? 'month' : 'day';
+
+// Last 7 calendar days (UTC): fallback labels/values if the range payload is
+// ever missing, and the window the hero cards' trends above still use.
 $trendDays = [];
 $todayUtc = new \DateTimeImmutable(gmdate('Y-m-d'), new \DateTimeZone('UTC'));
 for ($daysAgo = 6; $daysAgo >= 0; $daysAgo--) {
@@ -142,21 +149,78 @@ $chartSeries = [];
 $barSeries = [];
 $chartPeak = 0;
 $barPeak = 0;
+$chartRawLabels = [];
 foreach ($chartMetrics as $trendKey => $meta) {
-    $trend = is_array($trends[$trendKey] ?? null) ? $trends[$trendKey] : [];
-    $rawSeries = is_array($trend['series'] ?? null) ? array_values($trend['series']) : [];
-    $values = [];
-    foreach (array_keys($trendDays) as $index) {
-        $values[] = (int) ($rawSeries[$index] ?? 0);
+    $rangeMetric = is_array($growthMetrics[$trendKey] ?? null) ? $growthMetrics[$trendKey] : null;
+    if ($rangeMetric !== null && is_array($rangeMetric['series'] ?? null) && $rangeMetric['series'] !== []) {
+        $values = array_map(static fn (mixed $value): int => (int) $value, array_values($rangeMetric['series']));
+        $current = (int) ($rangeMetric['total'] ?? array_sum($values));
+        $previous = (int) ($rangeMetric['previous'] ?? 0);
+        if (is_array($rangeMetric['labels'] ?? null) && $rangeMetric['labels'] !== []) {
+            $chartRawLabels = array_values($rangeMetric['labels']);
+        }
+    } else {
+        // Defensive fallback: this metric's last-7-days trend payload.
+        $trend = is_array($trends[$trendKey] ?? null) ? $trends[$trendKey] : [];
+        $values = [];
+        foreach (array_keys($trendDays) as $index) {
+            $values[] = (int) ($trend['series'][$index] ?? 0);
+        }
+        $current = (int) ($trend['current'] ?? array_sum($values));
+        $previous = (int) ($trend['previous'] ?? 0);
     }
-    $current = (int) ($trend['current'] ?? array_sum($values));
-    $previous = (int) ($trend['previous'] ?? 0);
 
     $chartSeries[$trendKey] = $meta + ['values' => $values, 'current' => $current];
     $barSeries[$trendKey] = $meta + ['current' => $current, 'previous' => $previous];
     $chartPeak = max($chartPeak, ...$values);
     $barPeak = max($barPeak, $current, $previous);
 }
+
+$chartPointCount = count($chartSeries['users']['values'] ?? []);
+
+// X-axis labels for the selected granularity, shown sparsely for long windows
+// so day/month captions never overlap.
+$chartLabels = [];
+if ($chartRawLabels !== [] && count($chartRawLabels) === $chartPointCount) {
+    foreach ($chartRawLabels as $rawLabel) {
+        $chartLabels[] = $growthGranularity === 'month'
+            ? gmdate('m/Y', (int) strtotime($rawLabel . '-01'))
+            : ($rawLabel === gmdate('Y-m-d') ? t('super.today') : gmdate('d/m', (int) strtotime($rawLabel)));
+    }
+}
+if ($chartLabels === []) {
+    $chartLabels = [];
+    for ($index = 0; $index < max(1, $chartPointCount); $index++) {
+        $chartLabels[] = $trendDayLabel($index);
+    }
+}
+$chartLabelIndexes = [];
+if ($chartPointCount <= 8) {
+    for ($index = 0; $index < $chartPointCount; $index++) {
+        $chartLabelIndexes[] = $index;
+    }
+} else {
+    $labelStep = max(1, (int) ceil($chartPointCount / 6));
+    for ($index = 0; $index < $chartPointCount; $index += $labelStep) {
+        $chartLabelIndexes[] = $index;
+    }
+    if (($chartLabelIndexes[count($chartLabelIndexes) - 1] ?? -1) !== $chartPointCount - 1) {
+        $chartLabelIndexes[] = $chartPointCount - 1;
+    }
+}
+$chartLabel = static fn (int $index): string => $chartLabels[$index] ?? (string) $index;
+
+// Range chip labels + headings (both languages come from the catalogs).
+$rangeOptions = ['7', '30', '60', '90', 'all'];
+$rangeChipLabel = static function (string $option): string {
+    return $option === 'all' ? t('super.all_time') : t('super.range_days', ['count' => $option]);
+};
+$growthHeading = $range === 'all'
+    ? t($growthGranularity === 'month' ? 'super.all_time_monthly' : 'super.all_time')
+    : ($range === '7' ? t('super.last_7_days') : t('super.last_days', ['count' => $range]));
+$compareHeading = $range === 'all' ? '' : t('super.compare_days', ['count' => $range]);
+$barCurrentLabel = t('super.this_period');
+$barPreviousLabel = t('super.previous_period');
 
 // Line/area chart geometry (all server-built, no JavaScript).
 $chartScale = $niceScale($chartPeak);
@@ -169,8 +233,8 @@ $chartPadBottom = 30;
 $chartPlotWidth = $chartWidth - $chartPadLeft - $chartPadRight;
 $chartPlotHeight = $chartHeight - $chartPadTop - $chartPadBottom;
 $chartBaseline = $chartPadTop + $chartPlotHeight;
-$chartX = static function (int $index) use ($chartPadLeft, $chartPlotWidth, $trendDays): float {
-    $steps = max(1, count($trendDays) - 1);
+$chartX = static function (int $index) use ($chartPadLeft, $chartPlotWidth, $chartPointCount): float {
+    $steps = max(1, $chartPointCount - 1);
 
     return round($chartPadLeft + ($index * ($chartPlotWidth / $steps)), 2);
 };
@@ -215,9 +279,10 @@ foreach ($barSeries as $trendKey => $bar) {
 }
 
 // Growth numbers that are not one of the four charted series stay visible.
+// Active users / New users follow the selected range; the rest are snapshots.
 $growthStrip = [
-    ['label' => t('super.active_users'), 'value' => (int) $metrics['active_7d']],
-    ['label' => t('super.signups_30d'), 'value' => (int) $metrics['signups_30d']],
+    ['label' => t('super.active_users'), 'value' => (int) ($growth['strip']['active_users'] ?? $metrics['active_7d'])],
+    ['label' => t('super.new_users'), 'value' => (int) ($growth['strip']['new_users'] ?? $metrics['signups_30d'])],
     ['label' => t('super.admins'), 'value' => (int) $metrics['admins']],
     ['label' => t('super.creators_total'), 'value' => (int) $metrics['creators_total']],
     ['label' => t('super.staff_total'), 'value' => (int) $metrics['staff_total']],
@@ -308,7 +373,13 @@ $statCards = [
 <section class="panel-card" aria-labelledby="super-growth-title">
     <div class="panel-card__head">
         <h2 id="super-growth-title"><?= e(t('super.growth')) ?></h2>
-        <span class="admin-muted"><?= e(t('super.since')) ?></span>
+        <nav class="range-chips" aria-label="<?= e(t('super.time_range')) ?>">
+            <?php foreach ($rangeOptions as $rangeOption): ?>
+                <a class="range-chip" href="<?= e(url('/admin') . '?range=' . $rangeOption) ?>" <?= $range === $rangeOption ? 'aria-current="page"' : '' ?>>
+                    <?= e($rangeChipLabel($rangeOption)) ?>
+                </a>
+            <?php endforeach; ?>
+        </nav>
     </div>
 
     <dl class="growth-strip">
@@ -323,7 +394,7 @@ $statCards = [
     <div class="growth-grid">
         <section class="growth-chart" aria-labelledby="growth-chart-title">
             <div class="growth-chart__head">
-                <h3 id="growth-chart-title"><?= e(t('super.last_7_days')) ?></h3>
+                <h3 id="growth-chart-title"><?= e($growthHeading) ?></h3>
                 <span class="growth-chart__hint"><?= e(t('super.total')) ?></span>
             </div>
             <svg class="growth-chart__svg" viewBox="0 0 <?= e((string) $chartWidth) ?> <?= e((string) $chartHeight) ?>" aria-hidden="true" focusable="false">
@@ -343,16 +414,16 @@ $statCards = [
                     ><?= e((string) $tick) ?></text>
                 <?php endforeach; ?>
 
-                <?php foreach (array_keys($trendDays) as $index): ?>
+                <?php foreach ($chartLabelIndexes as $labelIndex): ?>
                     <?php
-                    $anchor = $index === 0 ? 'start' : ($index === count($trendDays) - 1 ? 'end' : 'middle');
+                    $anchor = $labelIndex === 0 ? 'start' : ($labelIndex === $chartPointCount - 1 ? 'end' : 'middle');
                     ?>
                     <text
                         class="growth-chart__axis growth-chart__axis--x"
-                        x="<?= e($chartX($index)) ?>"
+                        x="<?= e($chartX($labelIndex)) ?>"
                         y="<?= e($chartHeight - 9) ?>"
                         text-anchor="<?= e($anchor) ?>"
-                    ><?= e($trendDayLabel($index)) ?></text>
+                    ><?= e($chartLabel($labelIndex)) ?></text>
                 <?php endforeach; ?>
 
                 <?php foreach ($chartSeries as $series): ?>
@@ -371,7 +442,7 @@ $statCards = [
                         <path class="growth-chart__line" d="<?= e($linePath) ?>" pathLength="100" />
                         <?php foreach ($series['values'] as $index => $value): ?>
                             <circle class="growth-chart__dot" cx="<?= e($chartX($index)) ?>" cy="<?= e($chartY($value)) ?>" r="3.4">
-                                <title><?= e($series['label'] . ' · ' . $trendDayLabel($index) . ': ' . $value) ?></title>
+                                <title><?= e($series['label'] . ' · ' . $chartLabel($index) . ': ' . $value) ?></title>
                             </circle>
                         <?php endforeach; ?>
                     </g>
@@ -389,31 +460,32 @@ $statCards = [
             </ul>
 
             <table class="visually-hidden growth-chart__data">
-                <caption><?= e(t('super.last_7_days')) ?></caption>
+                <caption><?= e($growthHeading) ?></caption>
                 <thead>
                     <tr>
-                        <th scope="col"><?= e(t('super.day')) ?></th>
+                        <th scope="col"><?= e(t('super.period')) ?></th>
                         <?php foreach ($chartMetrics as $meta): ?>
                             <th scope="col"><?= e($meta['label']) ?></th>
                         <?php endforeach; ?>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach (array_keys($trendDays) as $index): ?>
+                    <?php for ($pointIndex = 0; $pointIndex < $chartPointCount; $pointIndex++): ?>
                         <tr>
-                            <th scope="row"><?= e($trendDays[$index]->format('d/m')) ?></th>
+                            <th scope="row"><?= e($chartLabel($pointIndex)) ?></th>
                             <?php foreach ($chartSeries as $series): ?>
-                                <td><?= e((string) $series['values'][$index]) ?></td>
+                                <td><?= e((string) ($series['values'][$pointIndex] ?? 0)) ?></td>
                             <?php endforeach; ?>
                         </tr>
-                    <?php endforeach; ?>
+                    <?php endfor; ?>
                 </tbody>
             </table>
         </section>
 
+        <?php if ($range !== 'all'): ?>
         <section class="growth-bars" aria-labelledby="growth-bars-title">
             <div class="growth-bars__head">
-                <h3 id="growth-bars-title"><?= e(t('super.week_compare')) ?></h3>
+                <h3 id="growth-bars-title"><?= e($compareHeading) ?></h3>
             </div>
             <svg class="growth-bars__svg" viewBox="0 0 <?= e((string) $barWidth) ?> <?= e((string) $barHeight) ?>" aria-hidden="true" focusable="false">
                 <line
@@ -433,7 +505,7 @@ $statCards = [
                         height="<?= e($geometry['previousHeight']) ?>"
                         rx="3"
                     >
-                        <title><?= e(t('super.previous_week') . ': ' . $bar['previous']) ?></title>
+                        <title><?= e($barPreviousLabel . ': ' . $bar['previous']) ?></title>
                     </rect>
                     <text
                         class="growth-bars__value"
@@ -449,7 +521,7 @@ $statCards = [
                         height="<?= e($geometry['currentHeight']) ?>"
                         rx="3"
                     >
-                        <title><?= e(t('super.this_week') . ': ' . $bar['current']) ?></title>
+                        <title><?= e($barCurrentLabel . ': ' . $bar['current']) ?></title>
                     </rect>
                     <text
                         class="growth-bars__value"
@@ -469,21 +541,21 @@ $statCards = [
             <ul class="growth-bars__legend">
                 <li class="growth-bars__legend-item">
                     <span class="growth-bars__swatch growth-bars__swatch--current" aria-hidden="true"></span>
-                    <?= e(t('super.this_week')) ?>
+                    <?= e($barCurrentLabel) ?>
                 </li>
                 <li class="growth-bars__legend-item">
                     <span class="growth-bars__swatch growth-bars__swatch--previous" aria-hidden="true"></span>
-                    <?= e(t('super.previous_week')) ?>
+                    <?= e($barPreviousLabel) ?>
                 </li>
             </ul>
 
             <table class="visually-hidden growth-bars__data">
-                <caption><?= e(t('super.week_compare')) ?></caption>
+                <caption><?= e($compareHeading) ?></caption>
                 <thead>
                     <tr>
                         <th scope="col"><?= e(t('super.metric')) ?></th>
-                        <th scope="col"><?= e(t('super.this_week')) ?></th>
-                        <th scope="col"><?= e(t('super.previous_week')) ?></th>
+                        <th scope="col"><?= e($barCurrentLabel) ?></th>
+                        <th scope="col"><?= e($barPreviousLabel) ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -497,6 +569,7 @@ $statCards = [
                 </tbody>
             </table>
         </section>
+        <?php endif; ?>
     </div>
 </section>
 
