@@ -37,6 +37,18 @@ final class AdminConsoleController extends Controller
         View::render('pages/admin/system', [
             'user' => $user,
             'system' => PlatformConsoleService::systemHealth((string) $user['id']),
+            'totals' => PlatformConsoleService::platformTotals((string) $user['id']),
+            'taskBadge' => PlatformConsoleService::taskBadge((string) $user['id']),
+        ], 'layout_admin');
+    }
+
+    /** AI Engine page (SYSTEM group): honest not-configured placeholder. */
+    public function ai(array $params): never
+    {
+        $user = $this->staff();
+
+        View::render('pages/admin/ai', [
+            'user' => $user,
             'taskBadge' => PlatformConsoleService::taskBadge((string) $user['id']),
         ], 'layout_admin');
     }
@@ -52,6 +64,7 @@ final class AdminConsoleController extends Controller
                 'kyc' => (string) (Http::queryString('kyc') ?? ''),
                 'page' => (int) (Http::queryString('page') ?? 1),
             ]),
+            'analytics' => PlatformConsoleService::workspaceAnalytics((string) $user['id']),
             'taskBadge' => PlatformConsoleService::taskBadge((string) $user['id']),
         ], 'layout_admin');
     }
@@ -76,8 +89,10 @@ final class AdminConsoleController extends Controller
             'users' => PlatformConsoleService::users((string) $user['id'], [
                 'q' => (string) (Http::queryString('q') ?? ''),
                 'admin' => (string) (Http::queryString('admin') ?? ''),
+                'new' => (string) (Http::queryString('new') ?? ''),
                 'page' => (int) (Http::queryString('page') ?? 1),
             ]),
+            'analytics' => PlatformConsoleService::userAnalytics((string) $user['id']),
             'taskBadge' => PlatformConsoleService::taskBadge((string) $user['id']),
         ], 'layout_admin');
     }
@@ -97,12 +112,24 @@ final class AdminConsoleController extends Controller
     {
         $user = $this->staff();
 
+        // Leading "Recent activity" panel: the latest unfiltered entries, five
+        // per page, independent of the audit table's action filter and paging.
+        $recentPage = max(1, (int) (Http::queryString('recent_page') ?? 1));
+        $recent = PlatformConsoleService::audit((string) $user['id'], [
+            'page' => $recentPage,
+            'per_page' => 5,
+        ]);
+
         View::render('pages/admin/audit', [
             'user' => $user,
             'audit' => PlatformConsoleService::audit((string) $user['id'], [
                 'action' => (string) (Http::queryString('action') ?? ''),
                 'page' => (int) (Http::queryString('page') ?? 1),
             ]),
+            'recent_audit' => $recent['rows'],
+            'recent_page' => $recent['page'],
+            'recent_pages' => $recent['pages'],
+            'recent_total' => $recent['total'],
             'taskBadge' => PlatformConsoleService::taskBadge((string) $user['id']),
         ], 'layout_admin');
     }

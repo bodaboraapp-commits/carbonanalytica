@@ -230,6 +230,90 @@ final class PlatformConsoleService
     }
 
     /**
+     * Platform totals moved from the overview ("Platform totals" panel) onto the
+     * dedicated System Health page, where they render as stat cards above the
+     * health table: KYC/organisation/template/document counters plus the real
+     * workspace plan distribution. Aggregate queries only; nothing invented.
+     *
+     * @return array{
+     *     kyc_waiting: int,
+     *     verified_orgs: int,
+     *     templates_published: int,
+     *     documents_uploaded: int,
+     *     plans: array{free: int, payg: int, team: int}
+     * }
+     */
+    public static function platformTotals(string $userId): array
+    {
+        self::assertStaff($userId);
+
+        $metrics = ReviewTaskRepository::platformMetrics();
+        $verifiedOrgs = ReviewTaskRepository::tableExists('organization_profiles')
+            ? (int) (Db::selectOne("SELECT COUNT(*) AS total FROM organization_profiles WHERE status = 'verified'")['total'] ?? 0)
+            : 0;
+
+        $plans = ['free' => 0, 'payg' => 0, 'team' => 0];
+        $planRows = Db::select('SELECT plan, COUNT(*) AS total FROM teams WHERE deleted_at IS NULL GROUP BY plan');
+        foreach ($planRows as $row) {
+            $plan = (string) $row['plan'];
+            if (array_key_exists($plan, $plans)) {
+                $plans[$plan] = (int) $row['total'];
+            }
+        }
+
+        return [
+            'kyc_waiting' => (int) $metrics['organisations_submitted'],
+            'verified_orgs' => $verifiedOrgs,
+            'templates_published' => (int) $metrics['templates_published'],
+            'documents_uploaded' => (int) $metrics['organisation_documents'],
+            'plans' => $plans,
+        ];
+    }
+
+    /**
+     * Real platform analytics for the Workspaces page stat cards. Every value
+     * is an existing row count; plans come from the same grouping used on the
+     * System Health page.
+     *
+     * @return array{total: int, kyc_waiting: int, verified_orgs: int, plans: array{free: int, payg: int, team: int}}
+     */
+    public static function workspaceAnalytics(string $userId): array
+    {
+        self::assertStaff($userId);
+
+        $totals = self::platformTotals($userId);
+        $total = (int) (Db::selectOne('SELECT COUNT(*) AS total FROM teams WHERE deleted_at IS NULL')['total'] ?? 0);
+
+        return [
+            'total' => $total,
+            'kyc_waiting' => $totals['kyc_waiting'],
+            'verified_orgs' => $totals['verified_orgs'],
+            'plans' => $totals['plans'],
+        ];
+    }
+
+    /**
+     * Real platform analytics for the Users page stat cards: total accounts,
+     * platform admins, accounts created in the last 7 days (same window as the
+     * `new=1` filter) and accounts active in the last 7 days.
+     *
+     * @return array{total: int, platform_admins: int, new_7d: int, active_7d: int}
+     */
+    public static function userAnalytics(string $userId): array
+    {
+        self::assertStaff($userId);
+
+        $since = gmdate('Y-m-d H:i:s', time() - 7 * 86400);
+
+        return [
+            'total' => (int) (Db::selectOne('SELECT COUNT(*) AS total FROM users WHERE deleted_at IS NULL')['total'] ?? 0),
+            'platform_admins' => (int) (Db::selectOne('SELECT COUNT(*) AS total FROM users WHERE deleted_at IS NULL AND is_platform_admin = 1')['total'] ?? 0),
+            'new_7d' => (int) (Db::selectOne('SELECT COUNT(*) AS total FROM users WHERE deleted_at IS NULL AND created_at >= ?', [$since])['total'] ?? 0),
+            'active_7d' => (int) (Db::selectOne('SELECT COUNT(*) AS total FROM users WHERE deleted_at IS NULL AND last_seen_at >= ?', [$since])['total'] ?? 0),
+        ];
+    }
+
+    /**
      * @param array{q?: string, kyc?: string, page?: int, per_page?: int} $filters
      * @return array{rows: list<array<string,mixed>>, total: int, page: int, pages: int}
      */
@@ -293,7 +377,7 @@ final class PlatformConsoleService
     }
 
     /**
-     * @param array{q?: string, admin?: string, page?: int, per_page?: int} $filters
+     * @param array{q?: string, admin?: string, new?: string, page?: int, per_page?: int} $filters
      * @return array{rows: list<array<string,mixed>>, total: int, page: int, pages: int}
      */
     public static function users(string $userId, array $filters): array
@@ -313,6 +397,12 @@ final class PlatformConsoleService
 
         if (($filters['admin'] ?? '') === '1') {
             $where[] = 'u.is_platform_admin = 1';
+        }
+
+        // "New users": accounts created in the last 7 days (composable with the
+        // search and platform-admin filters). Fixed interval, no user input.
+        if (($filters['new'] ?? '') === '1') {
+            $where[] = 'u.created_at >= NOW(3) - INTERVAL 7 DAY';
         }
 
         $whereSql = implode(' AND ', $where);

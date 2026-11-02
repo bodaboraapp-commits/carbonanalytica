@@ -8,6 +8,7 @@ declare(strict_types=1);
  *
  * @var array<string, mixed> $user
  * @var array<string, int|string> $system
+ * @var array{kyc_waiting: int, verified_orgs: int, templates_published: int, documents_uploaded: int, plans: array{free: int, payg: int, team: int}} $totals
  * @var int $taskBadge
  */
 ?>
@@ -18,6 +19,16 @@ declare(strict_types=1);
     </div>
     <a class="btn btn--secondary btn--sm" href="<?= e(url('/admin/database')) ?>"><?= e(t('super.manage_db')) ?></a>
 </div>
+
+<section class="stat-grid stat-grid--auto" aria-labelledby="system-totals-title">
+    <h2 class="visually-hidden" id="system-totals-title"><?= e(t('super.ledger')) ?></h2>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('super.kyc_waiting'), 'value' => (string) $totals['kyc_waiting'], 'icon' => 'inbox', 'tone' => 'blue']); ?>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('super.verified_orgs'), 'value' => (string) $totals['verified_orgs'], 'icon' => 'shield', 'tone' => 'green']); ?>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('super.templates_live'), 'value' => (string) $totals['templates_published'], 'icon' => 'layers', 'tone' => 'gold']); ?>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('super.docs_uploaded'), 'value' => (string) $totals['documents_uploaded'], 'icon' => 'file', 'tone' => 'slate']); ?>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('console.plan_free') . ' / ' . t('console.plan_payg') . ' / ' . t('console.plan_team'), 'value' => $totals['plans']['free'] . ' / ' . $totals['plans']['payg'] . ' / ' . $totals['plans']['team'], 'icon' => 'tag', 'tone' => 'green']); ?>
+</section>
+<p class="admin-muted small"><?= e(t('console.billing_note')) ?></p>
 
 <section class="panel-card" aria-labelledby="system-health-title">
     <div class="panel-card__head">

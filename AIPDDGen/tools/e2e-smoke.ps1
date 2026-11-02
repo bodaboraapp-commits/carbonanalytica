@@ -450,8 +450,8 @@ Check 'staff account signs in with the password' ($staffLogin.Status -eq 303 -an
 $staffAdmin = Invoke-Request '/admin' -Session $staff
 Check 'staff console shows the security panel' ($staffAdmin.Status -eq 200 -and $staffAdmin.Content -match 'Two-factor sign-in')
 $staffAdminToken = Get-CsrfToken $staffAdmin.Content
-if ($staffAdmin.Content -match 'Turn off two-factor') {
-    # Normalise a leftover setting before testing the switch.
+if ($staffAdmin.Content -match '(?s)/admin/security/otp.{0,800}?aria-checked="true"') {
+    # Normalise a leftover two-factor setting before testing the switch.
     Invoke-Request '/admin/security/otp' -Method POST -Session $staff -NoRedirect -Body @{ _csrf = $staffAdminToken } | Out-Null
     $staffAdmin = Invoke-Request '/admin' -Session $staff
     $staffAdminToken = Get-CsrfToken $staffAdmin.Content
@@ -459,7 +459,7 @@ if ($staffAdmin.Content -match 'Turn off two-factor') {
 $toggleOn = Invoke-Request '/admin/security/otp' -Method POST -Session $staff -NoRedirect -Body @{ _csrf = $staffAdminToken }
 Check 'staff can turn two-factor on' ($toggleOn.Status -eq 303) "status=$($toggleOn.Status)"
 $staffAfterToggle = Invoke-Request '/admin' -Session $staff
-Check 'security panel shows two-factor on' ($staffAfterToggle.Content -match 'Turn off two-factor')
+Check 'security panel shows two-factor on' ($staffAfterToggle.Content -match '(?s)/admin/security/otp.{0,800}?aria-checked="true"')
 
 $staffDashboard = Invoke-Request '/dashboard' -Session $staff
 $staffLogoutToken = Get-CsrfToken $staffDashboard.Content

@@ -13,7 +13,6 @@ declare(strict_types=1);
 $metrics = $overview['metrics'];
 $trends = $overview['trends'] ?? [];
 $settings = $overview['settings'];
-$plans = $overview['plans'];
 $otpOn = (int) ($user['otp_enabled'] ?? 0) === 1;
 $maintenanceOn = ($settings['maintenance_mode'] ?? '0') === '1';
 $signupsOn = ($settings['signups_enabled'] ?? '1') === '1';
@@ -48,50 +47,34 @@ $sparklinePoints = static function (array $series): string {
 };
 
 /**
- * Trend foot state: real percent change, or — when the previous seven days had
- * no rows and no percentage can be derived — the real direction derived from
- * current vs previous totals (Increasing / Decreasing / No change). No label is
- * invented and no percentage is faked.
+ * Trend foot state: the real absolute change across the two 7-day windows,
+ * current − previous. Green '+N' when it went up, red '−N' when it went down,
+ * muted '0' when unchanged. The arrow (up green / down red) and the sign carry
+ * the direction, the sparkline carries the shape; no percentage, word or other
+ * value is invented.
  *
- * @param array{series?: list<int>, delta?: int|null, direction?: 'up'|'down'|'flat'} $trend
- * @return array{class: string, text: string, arrow: string}
+ * @param array{current?: int, previous?: int} $trend
+ * @return array{class: string, text: string, arrow: 'up'|'down'|''}
  */
 $deltaState = static function (array $trend): array {
-    $delta = $trend['delta'] ?? null;
-    if ($delta === null) {
-        $direction = (string) ($trend['direction'] ?? 'flat');
-        $arrow = match ($direction) {
-            'up' => 'up',
-            'down' => 'down',
-            default => 'flat',
-        };
-        $text = match ($direction) {
-            'up' => t('super.trend_up'),
-            'down' => t('super.trend_down'),
-            default => t('super.trend_flat'),
-        };
-
-        return ['class' => 'is-' . $arrow, 'text' => $text, 'arrow' => $arrow];
+    $change = (int) ($trend['current'] ?? 0) - (int) ($trend['previous'] ?? 0);
+    if ($change > 0) {
+        return ['class' => 'is-up', 'text' => '+' . $change, 'arrow' => 'up'];
     }
-    if ($delta === 0) {
-        return ['class' => 'is-flat', 'text' => '0% in 7 days', 'arrow' => 'flat'];
+    if ($change < 0) {
+        return ['class' => 'is-down', 'text' => "\u{2212}" . abs($change), 'arrow' => 'down'];
     }
 
-    return [
-        'class' => $delta > 0 ? 'is-up' : 'is-down',
-        'text' => ($delta > 0 ? '+' : '') . $delta . '% in 7 days',
-        'arrow' => $delta > 0 ? 'up' : 'down',
-    ];
+    return ['class' => 'is-flat', 'text' => '0', 'arrow' => ''];
 };
 
-/** Decorative inline-SVG arrow for the trend foot (decorative: aria-hidden). */
-$deltaArrow = static function (string $arrow): string {
+/** Decorative direction arrow for the trend foot (aria-hidden, currentColor). */
+$trendArrow = static function (string $direction): string {
     $stroke = 'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
 
-    return match ($arrow) {
+    return match ($direction) {
         'up' => '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 12.5V3.5M4.2 7.3 8 3.5l3.8 3.8" ' . $stroke . '/></svg>',
         'down' => '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 3.5v9M4.2 8.7 8 12.5l3.8-3.8" ' . $stroke . '/></svg>',
-        'flat' => '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 8h9" ' . $stroke . '/></svg>',
         default => '',
     };
 };
@@ -249,7 +232,6 @@ $statCards = [
         'icon' => 'workspaces',
         'tone' => 'green',
         'trend' => $trends['workspaces'] ?? null,
-        'flag' => 0,
     ],
     [
         'label' => t('super.projects'),
@@ -257,7 +239,6 @@ $statCards = [
         'icon' => 'projects',
         'tone' => 'blue',
         'trend' => $trends['projects'] ?? null,
-        'flag' => 0,
     ],
     [
         'label' => t('super.users'),
@@ -265,7 +246,6 @@ $statCards = [
         'icon' => 'users',
         'tone' => 'gold',
         'trend' => $trends['users'] ?? null,
-        'flag' => 0,
     ],
     [
         'label' => t('super.open_tasks'),
@@ -273,7 +253,6 @@ $statCards = [
         'icon' => 'tasks',
         'tone' => 'slate',
         'trend' => $trends['tasks'] ?? null,
-        'flag' => (int) $metrics['review_breached'],
     ],
 ];
 ?>
@@ -301,15 +280,12 @@ $statCards = [
             <div class="stat-card__head">
                 <span class="stat-card__icon stat-card__icon--<?= e($card['tone']) ?>" aria-hidden="true"><?= $statIcon($card['icon']) ?></span>
                 <span class="stat-card__label"><?= e($card['label']) ?></span>
-                <?php if ($card['flag'] > 0): ?>
-                    <span class="stat-card__flag badge badge--urgent"><?= e(t('super.breached_count', ['count' => $card['flag']])) ?></span>
-                <?php endif; ?>
             </div>
             <span class="stat-card__value"><?= e($card['value']) ?></span>
             <?php if ($delta !== null && $series !== []): ?>
                 <div class="stat-card__foot">
                     <span class="stat-card__delta <?= e($delta['class']) ?>">
-                        <?= $deltaArrow($delta['arrow']) ?>
+                        <?= $trendArrow($delta['arrow']) ?>
                         <span><?= e($delta['text']) ?></span>
                     </span>
                     <svg class="stat-card__spark" viewBox="0 0 100 32" aria-hidden="true" focusable="false">
@@ -524,25 +500,24 @@ $statCards = [
     </div>
 </section>
 
-<section class="panel-card" aria-labelledby="super-controls-title">
-    <div class="panel-card__head">
-        <h2 id="super-controls-title"><?= e(t('super.controls')) ?></h2>
-    </div>
+<div class="console-columns">
+    <section class="panel-card" aria-labelledby="super-controls-title">
+        <div class="panel-card__head">
+            <h2 id="super-controls-title"><?= e(t('super.controls')) ?></h2>
+        </div>
 
-    <div class="security-row">
+        <div class="security-row">
             <div class="security-row__text">
                 <strong><?= e(t('super.maintenance_mode')) ?></strong>
                 <p class="admin-muted"><?= e(t('super.maintenance_note')) ?></p>
             </div>
             <div class="security-row__action">
-                <span class="badge <?= $maintenanceOn ? 'badge--urgent' : 'badge--neutral' ?>">
-                    <?= e($maintenanceOn ? t('super.on') : t('super.off')) ?>
-                </span>
                 <form class="inline-form" method="post" action="<?= e(url('/admin/settings/maintenance_mode')) ?>">
                     <?= csrf_field() ?>
                     <input type="hidden" name="value" value="<?= $maintenanceOn ? '0' : '1' ?>">
-                    <button class="btn btn--sm <?= $maintenanceOn ? 'btn--secondary' : '' ?>" type="submit">
-                        <?= e($maintenanceOn ? t('super.disable') : t('super.enable')) ?>
+                    <button class="switch" type="submit" role="switch" aria-checked="<?= $maintenanceOn ? 'true' : 'false' ?>" aria-label="<?= e(t('super.maintenance_mode')) ?>">
+                        <span class="switch__track" aria-hidden="true"><span class="switch__thumb"></span></span>
+                        <span class="switch__state"><?= e($maintenanceOn ? t('super.on') : t('super.off')) ?></span>
                     </button>
                 </form>
             </div>
@@ -554,14 +529,12 @@ $statCards = [
                 <p class="admin-muted"><?= e(t('super.signups_note')) ?></p>
             </div>
             <div class="security-row__action">
-                <span class="badge <?= $signupsOn ? '' : 'badge--neutral' ?>">
-                    <?= e($signupsOn ? t('super.on') : t('super.off')) ?>
-                </span>
                 <form class="inline-form" method="post" action="<?= e(url('/admin/settings/signups_enabled')) ?>">
                     <?= csrf_field() ?>
                     <input type="hidden" name="value" value="<?= $signupsOn ? '0' : '1' ?>">
-                    <button class="btn btn--sm <?= $signupsOn ? 'btn--secondary' : '' ?>" type="submit">
-                        <?= e($signupsOn ? t('super.disable') : t('super.enable')) ?>
+                    <button class="switch" type="submit" role="switch" aria-checked="<?= $signupsOn ? 'true' : 'false' ?>" aria-label="<?= e(t('super.signups_enabled')) ?>">
+                        <span class="switch__track" aria-hidden="true"><span class="switch__thumb"></span></span>
+                        <span class="switch__state"><?= e($signupsOn ? t('super.on') : t('super.off')) ?></span>
                     </button>
                 </form>
             </div>
@@ -573,118 +546,15 @@ $statCards = [
                 <p class="admin-muted"><?= e(t('admin.security_2fa_body')) ?></p>
             </div>
             <div class="security-row__action">
-                <span class="badge <?= $otpOn ? '' : 'badge--neutral' ?>">
-                    <?= e($otpOn ? t('admin.security_2fa_on') : t('admin.security_2fa_off')) ?>
-                </span>
                 <form class="inline-form" method="post" action="<?= e(url('/admin/security/otp')) ?>">
                     <?= csrf_field() ?>
-                    <button class="btn btn--sm <?= $otpOn ? 'btn--secondary' : '' ?>" type="submit">
-                        <?= e($otpOn ? t('admin.security_disable') : t('admin.security_enable')) ?>
+                    <button class="switch" type="submit" role="switch" aria-checked="<?= $otpOn ? 'true' : 'false' ?>" aria-label="<?= e(t('admin.security_2fa_title')) ?>">
+                        <span class="switch__track" aria-hidden="true"><span class="switch__thumb"></span></span>
+                        <span class="switch__state"><?= e($otpOn ? t('super.on') : t('super.off')) ?></span>
                     </button>
                 </form>
             </div>
         </div>
     </section>
-
-<div class="console-columns">
-    <section class="panel-card" aria-labelledby="super-new-users-title">
-        <div class="panel-card__head">
-            <h2 id="super-new-users-title"><?= e(t('super.recent_users')) ?></h2>
-            <a class="admin-link-arrow" href="<?= e(url('/admin/users')) ?>"><?= e(t('console.view_all')) ?> <span aria-hidden="true">&#8594;</span></a>
-        </div>
-        <?php if ($overview['recent_users'] === []): ?>
-            <p class="admin-muted"><?= e(t('console.no_users')) ?></p>
-        <?php else: ?>
-            <ul class="summary-list">
-                <?php foreach ($overview['recent_users'] as $row): ?>
-                    <li class="summary-list__item">
-                        <span class="summary-list__main">
-                            <strong><?= e((string) $row['name']) ?></strong>
-                            <span class="admin-muted"><?= e((string) $row['email']) ?></span>
-                        </span>
-                        <span class="badge <?= (int) $row['is_platform_admin'] === 1 ? '' : 'badge--neutral' ?>">
-                            <?= e((int) $row['is_platform_admin'] === 1 ? t('console.role_platform_admin') : t('console.role_user')) ?>
-                        </span>
-                    </li>
-                <?php endforeach; ?>
-            </ul>
-        <?php endif; ?>
-    </section>
-
-    <section class="panel-card" aria-labelledby="super-balance-title">
-        <div class="panel-card__head">
-            <h2 id="super-balance-title"><?= e(t('super.ledger')) ?></h2>
-        </div>
-        <ul class="summary-list">
-            <li class="summary-list__item">
-                <span class="summary-list__main"><strong><?= e(t('super.kyc_waiting')) ?></strong></span>
-                <span class="badge <?= $metrics['organisations_submitted'] > 0 ? 'badge--high' : 'badge--neutral' ?>">
-                    <?= e((string) $metrics['organisations_submitted']) ?>
-                </span>
-            </li>
-            <li class="summary-list__item">
-                <span class="summary-list__main"><strong><?= e(t('super.verified_orgs')) ?></strong></span>
-                <span class="badge badge--neutral"><?= e((string) $metrics['verified_orgs']) ?></span>
-            </li>
-            <li class="summary-list__item">
-                <span class="summary-list__main"><strong><?= e(t('super.templates_live')) ?></strong></span>
-                <span class="badge badge--neutral"><?= e((string) $metrics['templates_published']) ?></span>
-            </li>
-            <li class="summary-list__item">
-                <span class="summary-list__main"><strong><?= e(t('super.docs_uploaded')) ?></strong></span>
-                <span class="badge badge--neutral"><?= e((string) $metrics['organisation_documents']) ?></span>
-            </li>
-            <li class="summary-list__item">
-                <span class="summary-list__main"><strong><?= e(t('console.plan_free')) ?> / <?= e(t('console.plan_payg')) ?> / <?= e(t('console.plan_team')) ?></strong></span>
-                <span class="admin-muted"><?= e((string) ($plans['free'] ?? 0)) ?> / <?= e((string) ($plans['payg'] ?? 0)) ?> / <?= e((string) ($plans['team'] ?? 0)) ?></span>
-            </li>
-        </ul>
-        <p class="admin-muted small"><?= e(t('console.billing_note')) ?></p>
-    </section>
 </div>
 
-<div class="console-columns">
-    <section class="panel-card" aria-labelledby="super-audit-title">
-        <div class="panel-card__head">
-            <h2 id="super-audit-title"><?= e(t('console.recent_audit')) ?></h2>
-            <a class="admin-link-arrow" href="<?= e(url('/admin/audit')) ?>"><?= e(t('console.view_all')) ?> <span aria-hidden="true">&#8594;</span></a>
-        </div>
-        <?php if ($overview['recent_audit'] === []): ?>
-            <p class="admin-muted"><?= e(t('console.no_audit')) ?></p>
-        <?php else: ?>
-            <ul class="summary-list">
-                <?php foreach ($overview['recent_audit'] as $row): ?>
-                    <li class="summary-list__item">
-                        <span class="summary-list__main">
-                            <strong><?= e((string) $row['action']) ?></strong>
-                            <span class="admin-muted"><?= e((string) ($row['actor_name'] ?? t('console.system_actor'))) ?></span>
-                        </span>
-                        <span class="admin-muted"><?= e(format_date((string) $row['created_at'])) ?></span>
-                    </li>
-                <?php endforeach; ?>
-            </ul>
-        <?php endif; ?>
-    </section>
-
-    <section class="panel-card" aria-labelledby="super-ws-title">
-        <div class="panel-card__head">
-            <h2 id="super-ws-title"><?= e(t('console.recent_workspaces')) ?></h2>
-            <a class="admin-link-arrow" href="<?= e(url('/admin/workspaces')) ?>"><?= e(t('console.view_all')) ?> <span aria-hidden="true">&#8594;</span></a>
-        </div>
-        <?php if ($overview['recent_workspaces'] === []): ?>
-            <p class="admin-muted"><?= e(t('console.no_workspaces')) ?></p>
-        <?php else: ?>
-            <ul class="summary-list">
-                <?php foreach ($overview['recent_workspaces'] as $row): ?>
-                    <li class="summary-list__item">
-                        <span class="summary-list__main">
-                            <strong><?= e((string) $row['name']) ?></strong>
-                            <span class="admin-muted"><?= e((string) $row['plan']) ?> · <?= e((string) $row['members']) ?> <?= e(t('team.members_label')) ?></span>
-                        </span>
-                        <span class="badge badge--neutral"><?= e(format_date((string) $row['created_at'])) ?></span>
-                    </li>
-                <?php endforeach; ?>
-            </ul>
-        <?php endif; ?>
-    </section>
-</div>

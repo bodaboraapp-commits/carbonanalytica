@@ -616,6 +616,13 @@ return [
     // Déploiement : page de maintenance de la base.
     'console.nav_database' => 'Base de données',
     'console.nav_system_health' => 'Santé du système',
+    'console.nav_ai_engine' => 'Moteur IA',
+    // Page Moteur IA (groupe SYSTÈME) : page d’attente honnête, non configurée.
+    'ai.title' => 'Moteur IA',
+    'ai.sub' => 'État et configuration du moteur de rédaction IA.',
+    'ai.status' => 'Le moteur de rédaction IA n’est pas encore configuré dans ce déploiement.',
+    'ai.note' => 'La rédaction arrive aux étapes 5 à 7 de la feuille de route.',
+    'ai.badge' => 'Non configuré',
     'console.link_database' => 'Base de données et déploiement',
     'console.link_database_sub' => 'Migrations, seeds, déploiement',
     'db.title' => 'Base de données et déploiement',

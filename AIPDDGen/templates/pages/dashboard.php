@@ -142,28 +142,12 @@ $canManageMembers = (bool) $workspace['can_manage_members'];
     </div>
 </section>
 
-<section class="kpi-grid" aria-labelledby="workspace-kpi-title">
+<section class="stat-grid" aria-labelledby="workspace-kpi-title">
     <h2 class="visually-hidden" id="workspace-kpi-title"><?= e(t('workspace.kpi_title')) ?></h2>
-    <article class="kpi-card">
-        <span class="kpi-card__icon kpi-card__icon--green" aria-hidden="true">&#128101;</span>
-        <span class="kpi-card__label"><?= e(t('workspace.kpi_members')) ?></span>
-        <span class="kpi-card__value"><?= e((string) $metrics['members']) ?></span>
-    </article>
-    <article class="kpi-card">
-        <span class="kpi-card__icon kpi-card__icon--orange" aria-hidden="true">&#128200;</span>
-        <span class="kpi-card__label"><?= e(t('workspace.kpi_projects')) ?></span>
-        <span class="kpi-card__value"><?= e((string) $metrics['projects']) ?></span>
-    </article>
-    <article class="kpi-card">
-        <span class="kpi-card__icon kpi-card__icon--blue" aria-hidden="true">&#128203;</span>
-        <span class="kpi-card__label"><?= e(t('workspace.kpi_drafts')) ?></span>
-        <span class="kpi-card__value"><?= e((string) $metrics['drafts_total']) ?></span>
-    </article>
-    <article class="kpi-card">
-        <span class="kpi-card__icon kpi-card__icon--gold" aria-hidden="true">&#10003;</span>
-        <span class="kpi-card__label"><?= e(t('workspace.kpi_facts')) ?></span>
-        <span class="kpi-card__value"><?= e((string) $metrics['facts_confirmed']) ?></span>
-    </article>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('workspace.kpi_members'), 'value' => (string) $metrics['members'], 'icon' => 'users', 'tone' => 'green']); ?>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('workspace.kpi_projects'), 'value' => (string) $metrics['projects'], 'icon' => 'projects', 'tone' => 'blue']); ?>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('workspace.kpi_drafts'), 'value' => (string) $metrics['drafts_total'], 'icon' => 'drafts', 'tone' => 'gold']); ?>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('workspace.kpi_facts'), 'value' => (string) $metrics['facts_confirmed'], 'icon' => 'facts', 'tone' => 'slate']); ?>
 </section>
 
 <section class="panel-card" id="workspace-team" aria-labelledby="workspace-team-title">

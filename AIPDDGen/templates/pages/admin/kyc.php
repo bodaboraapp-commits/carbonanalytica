@@ -25,19 +25,11 @@ $badge = static function (string $status): string {
     </div>
 </div>
 
-<section class="kpi-grid kpi-grid--3">
-    <article class="kpi-card">
-        <span class="kpi-card__label"><?= e(t('console.kyc_status_submitted')) ?></span>
-        <span class="kpi-card__value"><?= e((string) ($counts['submitted'] ?? 0)) ?></span>
-    </article>
-    <article class="kpi-card">
-        <span class="kpi-card__label"><?= e(t('console.kyc_status_verified')) ?></span>
-        <span class="kpi-card__value"><?= e((string) ($counts['verified'] ?? 0)) ?></span>
-    </article>
-    <article class="kpi-card">
-        <span class="kpi-card__label"><?= e(t('console.kyc_status_rejected')) ?></span>
-        <span class="kpi-card__value"><?= e((string) ($counts['rejected'] ?? 0)) ?></span>
-    </article>
+<section class="stat-grid stat-grid--3" aria-labelledby="kyc-kpi-title">
+    <h2 class="visually-hidden" id="kyc-kpi-title"><?= e(t('console.kyc_title')) ?></h2>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('console.kyc_status_submitted'), 'value' => (string) ($counts['submitted'] ?? 0), 'icon' => 'inbox', 'tone' => 'blue']); ?>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('console.kyc_status_verified'), 'value' => (string) ($counts['verified'] ?? 0), 'icon' => 'shield', 'tone' => 'green']); ?>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('console.kyc_status_rejected'), 'value' => (string) ($counts['rejected'] ?? 0), 'icon' => 'reject', 'tone' => 'danger']); ?>
 </section>
 
 <section class="panel-card">

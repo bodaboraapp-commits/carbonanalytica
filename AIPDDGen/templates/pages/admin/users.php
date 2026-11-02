@@ -8,11 +8,16 @@ declare(strict_types=1);
  * @var int $taskBadge
  */
 
-$filters = ['q' => (string) ($_GET['q'] ?? ''), 'admin' => (string) ($_GET['admin'] ?? '')];
+$filters = [
+    'q' => (string) ($_GET['q'] ?? ''),
+    'admin' => (string) ($_GET['admin'] ?? ''),
+    'new' => (string) ($_GET['new'] ?? ''),
+];
 $pageUrl = static function (int $page) use ($filters): string {
     $params = array_filter([
         'q' => $filters['q'],
         'admin' => $filters['admin'],
+        'new' => $filters['new'],
         'page' => $page > 1 ? $page : null,
     ]);
     return url('/admin/users') . ($params !== [] ? '?' . http_build_query($params) : '');
@@ -38,6 +43,13 @@ $pageUrl = static function (int $page) use ($filters): string {
             <option value="1" <?= $filters['admin'] === '1' ? 'selected' : '' ?>><?= e(t('console.filter_admin')) ?></option>
         </select>
     </div>
+    <div class="admin-filters__field">
+        <label for="user-new"><?= e(t('super.new_users')) ?></label>
+        <select id="user-new" name="new">
+            <option value=""><?= e(t('console.filter_all_users')) ?></option>
+            <option value="1" <?= $filters['new'] === '1' ? 'selected' : '' ?>><?= e(t('super.last_7_days')) ?></option>
+        </select>
+    </div>
     <div class="admin-filters__actions">
         <button class="btn btn--sm" type="submit"><?= e(t('console.apply')) ?></button>
         <a class="btn btn--secondary btn--sm" href="<?= e(url('/admin/users')) ?>"><?= e(t('console.clear')) ?></a>
@@ -56,6 +68,7 @@ $pageUrl = static function (int $page) use ($filters): string {
                         <th scope="col"><?= e(t('console.table_user')) ?></th>
                         <th scope="col"><?= e(t('console.table_teams')) ?></th>
                         <th scope="col"><?= e(t('console.table_role')) ?></th>
+                        <th scope="col"><?= e(t('console.table_created')) ?></th>
                         <th scope="col"><?= e(t('console.table_signin')) ?></th>
                         <th scope="col"><span class="visually-hidden"><?= e(t('console.table_actions')) ?></span></th>
                     </tr>
@@ -77,6 +90,7 @@ $pageUrl = static function (int $page) use ($filters): string {
                                     <span class="badge badge--neutral"><?= e(t('common.you')) ?></span>
                                 <?php endif; ?>
                             </td>
+                            <td class="admin-muted"><?= e(format_date((string) $row['created_at'])) ?></td>
                             <td class="admin-muted"><?= e($row['last_seen_at'] !== null ? format_date((string) $row['last_seen_at']) : t('console.never')) ?></td>
                             <td>
                                 <form class="inline-form" method="post" action="<?= e(url('/admin/users/' . $row['id'] . '/platform-admin')) ?>">

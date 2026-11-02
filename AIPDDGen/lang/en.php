@@ -616,6 +616,13 @@ return [
     // Deployment: database maintenance page.
     'console.nav_database' => 'Database',
     'console.nav_system_health' => 'System Health',
+    'console.nav_ai_engine' => 'AI Engine',
+    // AI Engine page (SYSTEM group): honest not-configured placeholder.
+    'ai.title' => 'AI Engine',
+    'ai.sub' => 'AI drafting engine status and configuration.',
+    'ai.status' => 'The AI drafting engine is not configured in this deployment yet.',
+    'ai.note' => 'Drafting arrives in roadmap steps 5–7.',
+    'ai.badge' => 'Not configured',
     'console.link_database' => 'Database & deployment',
     'console.link_database_sub' => 'Migrations, seeds, live deployment',
     'db.title' => 'Database & deployment',

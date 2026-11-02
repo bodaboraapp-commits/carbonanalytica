@@ -58,7 +58,7 @@ $tenantLogin = Invoke-Request '/login' -Method POST -Session $tenant -NoRedirect
     _csrf = $tenantToken; email = 'demo@pddgen.local'; password = 'DemoPassw0rd!123'; next = '/dashboard'
 }
 Check 'demo tenant can sign in' ($tenantLogin.Status -eq 303) "status=$($tenantLogin.Status)"
-foreach ($consolePath in @('/admin', '/admin/tasks', '/admin/workspaces', '/admin/kyc', '/admin/users', '/admin/templates', '/admin/audit', '/admin/system', '/admin/database')) {
+foreach ($consolePath in @('/admin', '/admin/tasks', '/admin/workspaces', '/admin/kyc', '/admin/users', '/admin/templates', '/admin/audit', '/admin/system', '/admin/ai', '/admin/database')) {
     $tenantConsole = Invoke-Request $consolePath -Session $tenant
     Check "tenant gets 404 on $consolePath" ($tenantConsole.Status -eq 404) "status=$($tenantConsole.Status)"
 }
@@ -78,10 +78,11 @@ Check 'super admin dashboard renders' ($dashboard.Status -eq 200 -and $dashboard
 Check 'KPI tiles present' ($dashboard.Content -match 'Platform statistics')
 Check 'growth stats present' ($dashboard.Content -match 'Growth and activity')
 Check 'system health menu item present' ($dashboard.Content -match 'System Health' -and $dashboard.Content -match '/admin/system')
+Check 'AI Engine menu item present' ($dashboard.Content -match 'AI Engine' -and $dashboard.Content -match '/admin/ai')
 Check 'platform controls present' ($dashboard.Content -match 'Platform controls' -and $dashboard.Content -match 'Maintenance mode')
 Check 'quick actions present' ($dashboard.Content -match 'Review KYC' -and $dashboard.Content -match 'Open queue')
-Check 'KYC status present' ($dashboard.Content -match 'KYC waiting')
-Check 'recent activity present' ($dashboard.Content -match 'Recent activity')
+Check 'platform totals moved to system health' (-not ($dashboard.Content -match 'Platform totals'))
+Check 'recent activity moved to audit page' (-not ($dashboard.Content -match 'Recent activity'))
 Check 'security card present' ($dashboard.Content -match 'Two-factor sign-in')
 Check 'left side-panel menu present' ($dashboard.Content -match 'admin-sidebar' -and $dashboard.Content -match 'admin-nav-group__title')
 Check 'mobile menu toggle present' ($dashboard.Content -match 'admin-nav-toggle-input')
@@ -112,12 +113,26 @@ $consolePages = @{
     '/admin/templates'  = 'Template library'
     '/admin/audit'      = 'Audit'
     '/admin/system'     = 'System Health'
+    '/admin/ai'         = 'AI Engine'
     '/admin/database'   = 'Database'
 }
 foreach ($page in $consolePages.GetEnumerator()) {
     $res = Invoke-Request $page.Key -Session $staff
     Check "console page $($page.Key)" ($res.Status -eq 200 -and $res.Content -match [regex]::Escape($page.Value)) "status=$($res.Status)"
 }
+
+$aiPage = Invoke-Request '/admin/ai' -Session $staff
+Check 'AI Engine page shows the honest not-configured placeholder' ($aiPage.Status -eq 200 -and $aiPage.Content -match 'Not configured' -and $aiPage.Content -match 'not configured in this deployment') "status=$($aiPage.Status)"
+Check 'AI Engine nav item is active on its page' ($aiPage.Content -match [regex]::Escape('/admin/ai') -and $aiPage.Content -match 'aria-current="page"')
+
+$systemTotals = Invoke-Request '/admin/system' -Session $staff
+Check 'system page shows platform totals cards' ($systemTotals.Status -eq 200 -and $systemTotals.Content -match 'stat-grid' -and $systemTotals.Content -match 'Platform totals' -and $systemTotals.Content -match 'KYC waiting' -and $systemTotals.Content -match 'Published templates') "status=$($systemTotals.Status)"
+
+$auditColumns = Invoke-Request '/admin/audit' -Session $staff
+Check 'audit page shows recent activity panel' ($auditColumns.Status -eq 200 -and $auditColumns.Content -match 'audit-columns' -and $auditColumns.Content -match 'Recent activity' -and $auditColumns.Content -match 'Audit log') "status=$($auditColumns.Status)"
+
+$newUsers = Invoke-Request '/admin/users?new=1' -Session $staff
+Check 'users page filters new users' ($newUsers.Status -eq 200 -and $newUsers.Content -match 'name="new"' -and $newUsers.Content -match 'Created') "status=$($newUsers.Status)"
 
 $search = Invoke-Request '/admin/workspaces?q=demo' -Session $staff
 Check 'workspace search responds' ($search.Status -eq 200)

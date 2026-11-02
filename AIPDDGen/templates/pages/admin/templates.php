@@ -32,19 +32,11 @@ $registryLabel = static function (?string $registry): string {
     </div>
 </div>
 
-<section class="kpi-grid kpi-grid--3">
-    <article class="kpi-card">
-        <span class="kpi-card__label"><?= e(t('console.template_status_published')) ?></span>
-        <span class="kpi-card__value"><?= e((string) ($counts['published'] ?? 0)) ?></span>
-    </article>
-    <article class="kpi-card">
-        <span class="kpi-card__label"><?= e(t('console.template_status_draft')) ?></span>
-        <span class="kpi-card__value"><?= e((string) ($counts['draft'] ?? 0)) ?></span>
-    </article>
-    <article class="kpi-card">
-        <span class="kpi-card__label"><?= e(t('console.template_status_retired')) ?></span>
-        <span class="kpi-card__value"><?= e((string) ($counts['retired'] ?? 0)) ?></span>
-    </article>
+<section class="stat-grid stat-grid--3" aria-labelledby="templates-kpi-title">
+    <h2 class="visually-hidden" id="templates-kpi-title"><?= e(t('console.templates_title')) ?></h2>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('console.template_status_published'), 'value' => (string) ($counts['published'] ?? 0), 'icon' => 'facts', 'tone' => 'green']); ?>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('console.template_status_draft'), 'value' => (string) ($counts['draft'] ?? 0), 'icon' => 'drafts', 'tone' => 'gold']); ?>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('console.template_status_retired'), 'value' => (string) ($counts['retired'] ?? 0), 'icon' => 'archive', 'tone' => 'slate']); ?>
 </section>
 
 <section class="panel-card">
