@@ -1740,3 +1740,19 @@ a.stepper__link:hover .stepper__title { text-decoration: underline; text-underli
 @media (max-width: 640px) {
   .kpi-grid--3 { grid-template-columns: 1fr; }
 }
+
+/* Token-gated deployment import page ----------------------------------- */
+
+.deploy-import {
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.deploy-import__wrap {
+  max-width: 760px;
+  margin: 4vh auto;
+  padding: 0 1rem 3rem;
+}
+
+.deploy-import h1 { margin-bottom: 0.25rem; }
+.deploy-import .card { margin: 1.25rem 0; }

@@ -1,0 +1,42 @@
+# Subdirectory deployment (project root is the web directory).
+#
+# Use this file when Apache/LiteSpeed serves this folder directly, e.g.:
+#   https://example.com/AIPDDGen/
+#
+# Preferred deployments point the document root at public/ instead
+# (subdomain or dedicated vhost); then this file is not needed.
+#
+# What it does:
+#  - serves public/assets/* under /assets/*
+#  - forwards every other URL to index.php (the shim in this folder), which
+#    requires public/index.php while keeping the /AIPDDGen prefix detectable
+#  - blocks direct access to application internals and dotfiles
+
+DirectoryIndex index.php
+
+Options -Indexes
+ServerSignature Off
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Static assets (CSS, images, fonts).
+    RewriteRule ^assets/(.*)$ public/assets/$1 [L]
+
+    # Deployment diagnostic (delete public/health.php after use).
+    RewriteRule ^health\.php$ public/health.php [L]
+
+    # Application internals are never served directly.
+    RewriteRule ^(src|storage|database|docs|tests|bin|config|lang|migrations|templates|tools)(/|$) - [F,L]
+
+    # Dotfiles and backups.
+    RewriteRule (^|/)\. - [F,L]
+
+    # Front controller.
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+# Block sensitive file extensions anywhere under the project root.
+<FilesMatch "\.(env|ini|log|sql|md|py|ps1|sh)$">
+    Require all denied
+</FilesMatch>

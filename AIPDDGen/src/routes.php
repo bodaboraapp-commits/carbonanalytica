@@ -12,6 +12,7 @@ use App\Controllers\AdminDatabaseController;
 use App\Controllers\AdminTaskController;
 use App\Controllers\ApiController;
 use App\Controllers\AuthController;
+use App\Controllers\DeployController;
 use App\Controllers\InviteController;
 use App\Controllers\OnboardingController;
 use App\Controllers\PageController;
@@ -30,6 +31,7 @@ $onboarding = new OnboardingController();
 $adminTasks = new AdminTaskController();
 $adminConsole = new AdminConsoleController();
 $adminDatabase = new AdminDatabaseController();
+$deploy = new DeployController();
 $api = new ApiController();
 
 // Public pages.
@@ -84,6 +86,11 @@ $router->get('/admin/audit', [$adminConsole, 'audit']);
 $router->get('/admin/database', [$adminDatabase, 'show']);
 $router->post('/admin/database/migrate', [$adminDatabase, 'migrate']);
 $router->post('/admin/database/seed', [$adminDatabase, 'seed']);
+$router->get('/admin/database/import', [$adminDatabase, 'showImport']);
+$router->post('/admin/database/import', [$adminDatabase, 'importDump']);
+
+// One-click dump import, enabled only when DEPLOY_TOKEN is configured.
+$router->get('/deploy/import', [$deploy, 'import']);
 
 // Staff review queue.
 $router->get('/admin/tasks', [$adminTasks, 'tasks']);

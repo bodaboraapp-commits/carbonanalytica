@@ -65,6 +65,14 @@ $router->get('/admin/templates', [$adminConsole, 'templates']);
 $router->get('/admin/audit', [$adminConsole, 'audit']);
 $router->get('/admin/tasks', [$adminTasks, 'tasks']);         // + assign/unassign/complete
 $router->post('/admin/security/otp', [$adminTasks, 'toggleOtp']);
+
+// Deployment / database (staff only, plus token-gated deploy URL)
+$router->get('/admin/database', [$adminDatabase, 'show']);
+$router->post('/admin/database/migrate', [$adminDatabase, 'migrate']);
+$router->post('/admin/database/seed', [$adminDatabase, 'seed']);
+$router->get('/admin/database/import', [$adminDatabase, 'showImport']);
+$router->post('/admin/database/import', [$adminDatabase, 'importDump']);
+$router->get('/deploy/import', [$deploy, 'import']);          // token only, 404 when disabled
 ```
 
 - Tenant routes use `Auth::requireUser()` + `Tenancy`; cross-workspace ids resolve to 404.

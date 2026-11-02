@@ -19,20 +19,32 @@ Contents:
 
 ## Import options
 
-### A. phpMyAdmin (cPanel)
+### A. Browser — staff console (no phpMyAdmin, no SSH)
+
+After the code is deployed, sign in as a platform admin and open:
+
+**`https://your-domain.example/admin/database/import`**
+
+The page shows the dump file, its SHA-256 and the current database state. Use
+**Validate file (dry run)** first, then **Import dump now**. If the database
+already has data, tick the replacement confirmation (the dump rebuilds all
+tables). A fresh deployment with no accounts can use the token URL instead:
+`/deploy/import?token=<DEPLOY_TOKEN>` (see `docs/deployment.md`).
+
+### B. phpMyAdmin (cPanel)
 
 1. Create the database and a database user in cPanel.
 2. Open phpMyAdmin → select the database → **Import** → choose
    `database/pdd_generator_deploy.sql` → **Go**.
 3. Edit `.env.local` on the server with the same DB name/user/password.
 
-### B. Command line
+### C. Command line
 
 ```bash
 mysql -u <user> -p <database> < database/pdd_generator_deploy.sql
 ```
 
-### C. Skip the dump (fresh install with SSH)
+### D. Skip the dump (fresh install with SSH)
 
 ```bash
 php bin/setup.php

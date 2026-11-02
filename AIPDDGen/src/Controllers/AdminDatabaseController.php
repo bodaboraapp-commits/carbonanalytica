@@ -9,6 +9,7 @@ use App\Http;
 use App\I18n;
 use App\Repositories\ReviewTaskRepository;
 use App\Services\DatabaseMaintenanceService;
+use App\Services\DumpImportService;
 use App\Services\TaskCenterService;
 use App\View;
 
@@ -63,6 +64,61 @@ final class AdminDatabaseController extends Controller
         }
 
         Http::redirect('/admin/database');
+    }
+
+    /** Confirmation page for importing database/pdd_generator_deploy.sql. */
+    public function showImport(array $params): never
+    {
+        $user = $this->staff();
+
+        View::render('pages/admin/import', [
+            'user' => $user,
+            'state' => DumpImportService::inspect((string) $user['id']),
+            'taskBadge' => ReviewTaskRepository::summary((string) $user['id'])['breached'],
+        ], 'layout_admin');
+    }
+
+    /**
+     * Import the deployment dump. The page URL is the entry point; the POST
+     * button performs the import (or a dry-run validation).
+     */
+    public function importDump(array $params): never
+    {
+        $user = $this->staff();
+
+        $action = (string) (Http::input('action') ?? 'import');
+        $dryRun = $action === 'dry_run';
+        $replace = (string) (Http::input('replace') ?? '') === '1';
+
+        try {
+            $result = DumpImportService::import((string) $user['id'], $replace, $dryRun);
+
+            if ($dryRun) {
+                $this->flash('success', t('flash.dump_dry', [
+                    'count' => $result['statements'],
+                    'tables' => $result['tables'],
+                ]));
+            } else {
+                $this->flash('success', t('flash.dump_imported', [
+                    'count' => $result['statements'],
+                    'tables' => $result['tables'],
+                ]));
+
+                // The import replaces the users table, so the session account no
+                // longer exists; send the visitor to the sign-in screen.
+                Http::redirect('/login');
+            }
+        } catch (AppError $error) {
+            $this->flash(
+                'error',
+                $error->errorCode === 'conflict' ? t('flash.dump_blocked') : I18n::error($error->errorCode),
+            );
+        } catch (\Throwable $error) {
+            error_log('[pdd] dump import failed: ' . $error->getMessage());
+            $this->flash('error', t('flash.dump_failed'));
+        }
+
+        Http::redirect('/admin/database/import');
     }
 
     /** @return array<string, mixed> */

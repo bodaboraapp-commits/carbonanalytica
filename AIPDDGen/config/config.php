@@ -30,6 +30,13 @@ return [
         'charset' => 'utf8mb4',
     ],
 
+    // One-click deployment dump import: GET /deploy/import?token=...
+    // Empty token disables the route (404). Set DEPLOY_TOKEN in .env.local only
+    // while deploying, then remove it again.
+    'deploy' => [
+        'token' => (string) (getenv('DEPLOY_TOKEN') ?: ''),
+    ],
+
     'auth' => [
         // Session lifetime in seconds (sliding, refreshed on activity).
         'session_ttl' => 60 * 60 * 24 * 30,

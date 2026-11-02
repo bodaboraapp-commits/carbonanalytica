@@ -40,6 +40,43 @@ copy `public/*` into `public_html`, adjusting nothing else — `public/index.php
 detects the base path automatically (`public/.htaccess` already routes requests
 to `index.php`).
 
+### Subdirectory hosting (`https://your-domain.example/AIPDDGen/`)
+
+This is the current live layout on carbonanalytica.com: the **project root** is
+served as `/AIPDDGen/`, so the first thing a browser sees is the folder listing.
+
+The project now ships two files for this case:
+
+- `index.php` (project root) — a shim that requires `public/index.php` while
+  `SCRIPT_NAME` stays `/AIPDDGen/index.php`, so links, redirects and assets get
+  the `/AIPDDGen` prefix;
+- `.htaccess` (project root) — serves `/assets/*` from `public/assets`, routes
+  everything else to the shim, and blocks `src/`, `storage/`, `database/`,
+  `docs/`, `tests/`, `bin/`, `config/`, `lang/`, `migrations/`, `templates/`,
+  `tools/` and dotfiles.
+
+Upload/copy those two files (plus the updated code) into `/AIPDDGen/` and the
+app answers at `https://your-domain.example/AIPDDGen/`. Keep using
+`.../AIPDDGen/login`, `.../AIPDDGen/admin`, etc.
+
+**Preferred alternative:** point a subdomain at `AIPDDGen/public` (e.g.
+`app.your-domain.example`) — no shim, clean URLs.
+
+## 2b. Deployment health page
+
+When the site returns 500 (or after any upload), open:
+
+`https://your-domain.example/AIPDDGen/health.php`
+
+It does not need the app to boot and reports: PHP version, required extensions,
+presence of `src/`, `templates/`, `lang/`, `.env.local`, writable `storage/`
+directories, the DB settings (no passwords), the DB connection result, table
+count, applied migrations and whether accounts exist. Set `DEPLOY_TOKEN` in
+`.env.local` to require `?token=<value>` for the page.
+
+Delete `public/health.php` (or set `DEPLOY_TOKEN`) once the deployment is
+verified.
+
 ## 3. Configuration
 
 ```bash
@@ -96,6 +133,39 @@ php bin/seed.php      # idempotent seed data
 The migration ledger (`schema_migrations`) is included in the dump, so after
 importing it the app considers migrations 0001–0006 already applied.
 
+## 4b. Import the dump from the browser (no phpMyAdmin, no SSH)
+
+Two staff-protected URLs are available once the code is on the server and
+`storage/` is writable:
+
+| URL | Who | Purpose |
+| --- | --- | --- |
+| `https://your-domain.example/admin/database/import` | Signed-in platform admin | Confirm page with file info (size, SHA-256, statements, tables), current DB state, **Validate file (dry run)** and **Import dump now** |
+| `https://your-domain.example/deploy/import?token=<DEPLOY_TOKEN>` | Anyone holding the token (bootstrap) | One-click import for a fresh deployment that has no accounts yet |
+
+To enable the token URL, generate a long random token and set it in `.env.local`
+on the server:
+
+```bash
+php -r "echo bin2hex(random_bytes(24));"
+# .env.local
+DEPLOY_TOKEN=<the generated value>
+```
+
+Then open `https://your-domain.example/deploy/import?token=<value>`:
+
+- fresh database → shows **Import dump now**;
+- database with data → shows a warning and a **Replace data and import** link
+  (`&replace=1`) that must be clicked explicitly;
+- append `&dry_run=1` to validate the file without executing SQL.
+
+**Remove `DEPLOY_TOKEN` after deployment** (empty value = the URL answers 404).
+Routine updates should use the staff page or *Apply pending migrations* instead,
+because the dump rebuilds every table.
+
+Both routes are additive in what they do — the import itself replaces every
+table with the dump contents, which is why the replacement confirmation exists.
+
 ## 5. Click-to-update the database (browser)
 
 After the first import/setup, every later deployment can be finished in the
@@ -109,10 +179,16 @@ browser:
 4. **Run seed now** — idempotent: creates missing staff account, demo workspace,
    methodology catalogue and template structure if they are absent.
 
+The import variant of the same page is
+**`https://your-domain.example/admin/database/import`** (see 4b): it validates or
+imports `database/pdd_generator_deploy.sql` with a dry-run mode and an explicit
+replacement confirmation.
+
 The page shows the database name/host, table count, PHP version, every applied
 migration with its timestamp, pending migrations, and seed readiness
 (`Present`/`Missing`). It is accessible only to platform admins and every action
-is audited (`admin.database.migrated`, `admin.database.seeded`).
+is audited (`admin.database.migrated`, `admin.database.seeded`,
+`admin.database.dump_imported`).
 
 ## 6. Post-deploy checklist
 
@@ -147,3 +223,11 @@ If SSH is available, `php bin/migrate.php` does the same non-interactively.
 | "CSRF token mismatch" | Session cookie not stored: check `APP_URL`, HTTPS, `SESSION_SECURE_COOKIES`. |
 | Emails not arriving | `EMAIL_TRANSPORT` settings; in non-production the body is mirrored to `storage/logs/mail.log`. |
 | cPanel Git clone asks for username | Repo must be public, or add a deploy key/cPanel SSH key. The repo is public today. |
+
+## Security cleanup after fixing a subdirectory deployment
+
+The first upload exposed `/AIPDDGen/` as a directory index. Before going live,
+delete any files left in `storage/` that are not runtime data (for example
+`storage/tmp-*.php`, `storage/tmp-*.py`), verify that `/AIPDDGen/storage/` now
+returns **403** after uploading `.htaccess`, and delete `public/health.php` once
+the health page reports all checks passing.

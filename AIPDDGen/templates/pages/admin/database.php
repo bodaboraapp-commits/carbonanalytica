@@ -133,6 +133,7 @@ $seed = $status['seed'];
 <section class="panel-card" aria-labelledby="db-deploy-title">
     <div class="panel-card__head">
         <h2 id="db-deploy-title"><?= e(t('db.deploy_title')) ?></h2>
+        <a class="btn btn--secondary btn--sm" href="<?= e(url('/admin/database/import')) ?>"><?= e(t('import.open')) ?></a>
     </div>
     <p class="admin-muted"><?= e(t('db.deploy_body')) ?></p>
 </section>
