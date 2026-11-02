@@ -133,6 +133,16 @@ h4 {
   to { stroke-dashoffset: 0; }
 }
 
+@keyframes pdd-growth-line-draw {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes pdd-growth-bar-grow {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   body {
     animation: pdd-fade-in 0.3s ease-out both;
@@ -203,6 +213,26 @@ h4 {
   .stat-grid > article:nth-of-type(2) .stat-card__spark polyline { animation-delay: 0.3s; }
   .stat-grid > article:nth-of-type(3) .stat-card__spark polyline { animation-delay: 0.4s; }
   .stat-grid > article:nth-of-type(4) .stat-card__spark polyline { animation-delay: 0.5s; }
+
+  /* Growth charts: draw each line in, then grow the bars from the baseline. */
+  .growth-chart__line {
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+    animation: pdd-growth-line-draw 1.3s var(--ease-out-spring) 0.15s forwards;
+  }
+
+  .growth-chart__series--blue .growth-chart__line { animation-delay: 0.27s; }
+  .growth-chart__series--gold .growth-chart__line { animation-delay: 0.39s; }
+  .growth-chart__series--slate .growth-chart__line { animation-delay: 0.51s; }
+
+  .growth-bars__bar {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: pdd-growth-bar-grow 0.75s var(--ease-out-spring) both;
+  }
+
+  .growth-bars__bar--previous { animation-delay: 0.1s; }
+  .growth-bars__bar--current { animation-delay: 0.24s; }
 
   .admin-nav-link,
   .admin-actions__link,
@@ -292,5 +322,15 @@ h4 {
   .stat-card__spark polyline {
     stroke-dasharray: none;
     stroke-dashoffset: 0;
+  }
+
+  /* Growth charts show their final state: full lines, bars at real height. */
+  .growth-chart__line {
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+
+  .growth-bars__bar {
+    transform: none;
   }
 }

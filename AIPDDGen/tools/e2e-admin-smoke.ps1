@@ -58,8 +58,10 @@ $tenantLogin = Invoke-Request '/login' -Method POST -Session $tenant -NoRedirect
     _csrf = $tenantToken; email = 'demo@pddgen.local'; password = 'DemoPassw0rd!123'; next = '/dashboard'
 }
 Check 'demo tenant can sign in' ($tenantLogin.Status -eq 303) "status=$($tenantLogin.Status)"
-$tenantAdmin = Invoke-Request '/admin' -Session $tenant
-Check 'tenant gets 404 on /admin' ($tenantAdmin.Status -eq 404) "status=$($tenantAdmin.Status)"
+foreach ($consolePath in @('/admin', '/admin/tasks', '/admin/workspaces', '/admin/kyc', '/admin/users', '/admin/templates', '/admin/audit', '/admin/database')) {
+    $tenantConsole = Invoke-Request $consolePath -Session $tenant
+    Check "tenant gets 404 on $consolePath" ($tenantConsole.Status -eq 404) "status=$($tenantConsole.Status)"
+}
 
 Write-Output '--- staff sign in ---'
 $staff = New-Client

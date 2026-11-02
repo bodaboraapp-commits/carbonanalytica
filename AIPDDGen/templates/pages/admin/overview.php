@@ -49,16 +49,30 @@ $sparklinePoints = static function (array $series): string {
 };
 
 /**
- * Trend foot state: real percent change, 0% flat, or "New" when the previous
- * seven days had no rows (delta is null, so no percentage is invented).
+ * Trend foot state: real percent change, or — when the previous seven days had
+ * no rows and no percentage can be derived — the real direction derived from
+ * current vs previous totals (Increasing / Decreasing / No change). No label is
+ * invented and no percentage is faked.
  *
- * @param array{series?: list<int>, delta?: int|null} $trend
+ * @param array{series?: list<int>, delta?: int|null, direction?: 'up'|'down'|'flat'} $trend
  * @return array{class: string, text: string, arrow: string}
  */
 $deltaState = static function (array $trend): array {
     $delta = $trend['delta'] ?? null;
     if ($delta === null) {
-        return ['class' => 'is-new', 'text' => 'New', 'arrow' => ''];
+        $direction = (string) ($trend['direction'] ?? 'flat');
+        $arrow = match ($direction) {
+            'up' => 'up',
+            'down' => 'down',
+            default => 'flat',
+        };
+        $text = match ($direction) {
+            'up' => t('super.trend_up'),
+            'down' => t('super.trend_down'),
+            default => t('super.trend_flat'),
+        };
+
+        return ['class' => 'is-' . $arrow, 'text' => $text, 'arrow' => $arrow];
     }
     if ($delta === 0) {
         return ['class' => 'is-flat', 'text' => '0% in 7 days', 'arrow' => 'flat'];
@@ -96,6 +110,137 @@ $statIcon = static function (string $name): string {
 
     return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="' . $path . '" ' . $stroke . '/></svg>';
 };
+
+/**
+ * "Nice" y-axis scale for the line chart: a round tick maximum and step that
+ * keeps the gridlines sparse. Small maxima fall back to 0..max.
+ *
+ * @return array{max: int, ticks: list<int>}
+ */
+$niceScale = static function (int $rawMax): array {
+    $rawMax = max(1, $rawMax);
+    if ($rawMax <= 3) {
+        return ['max' => $rawMax, 'ticks' => range(0, $rawMax)];
+    }
+
+    $rough = $rawMax / 3;
+    $power = 10 ** (int) floor(log10($rough));
+    $normalised = $rough / $power;
+    $step = (int) (($normalised <= 1 ? 1 : ($normalised <= 2 ? 2 : ($normalised <= 5 ? 5 : 10))) * $power);
+    $step = max(1, $step);
+    $max = (int) (ceil($rawMax / $step) * $step);
+
+    $ticks = [];
+    for ($tick = 0; $tick <= $max; $tick += $step) {
+        $ticks[] = $tick;
+    }
+
+    return ['max' => $max, 'ticks' => $ticks];
+};
+
+// Last 7 calendar days (UTC), the same window as the service's trend series.
+$trendDays = [];
+$todayUtc = new \DateTimeImmutable(gmdate('Y-m-d'), new \DateTimeZone('UTC'));
+for ($daysAgo = 6; $daysAgo >= 0; $daysAgo--) {
+    $trendDays[] = $todayUtc->modify(sprintf('-%d days', $daysAgo));
+}
+$trendDayLabel = static function (int $index) use ($trendDays): string {
+    return $index === count($trendDays) - 1 ? t('super.today') : $trendDays[$index]->format('d/m');
+};
+
+// The four platform growth metrics become one line each, and one bar pair each.
+$chartMetrics = [
+    'users' => ['label' => t('super.users'), 'tone' => 'green'],
+    'projects' => ['label' => t('super.projects'), 'tone' => 'blue'],
+    'drafts' => ['label' => t('super.drafts'), 'tone' => 'gold'],
+    'tasks' => ['label' => t('super.tasks'), 'tone' => 'slate'],
+];
+
+$chartSeries = [];
+$barSeries = [];
+$chartPeak = 0;
+$barPeak = 0;
+foreach ($chartMetrics as $trendKey => $meta) {
+    $trend = is_array($trends[$trendKey] ?? null) ? $trends[$trendKey] : [];
+    $rawSeries = is_array($trend['series'] ?? null) ? array_values($trend['series']) : [];
+    $values = [];
+    foreach (array_keys($trendDays) as $index) {
+        $values[] = (int) ($rawSeries[$index] ?? 0);
+    }
+    $current = (int) ($trend['current'] ?? array_sum($values));
+    $previous = (int) ($trend['previous'] ?? 0);
+
+    $chartSeries[$trendKey] = $meta + ['values' => $values, 'current' => $current];
+    $barSeries[$trendKey] = $meta + ['current' => $current, 'previous' => $previous];
+    $chartPeak = max($chartPeak, ...$values);
+    $barPeak = max($barPeak, $current, $previous);
+}
+
+// Line/area chart geometry (all server-built, no JavaScript).
+$chartScale = $niceScale($chartPeak);
+$chartWidth = 640;
+$chartHeight = 260;
+$chartPadLeft = 40;
+$chartPadRight = 14;
+$chartPadTop = 16;
+$chartPadBottom = 30;
+$chartPlotWidth = $chartWidth - $chartPadLeft - $chartPadRight;
+$chartPlotHeight = $chartHeight - $chartPadTop - $chartPadBottom;
+$chartBaseline = $chartPadTop + $chartPlotHeight;
+$chartX = static function (int $index) use ($chartPadLeft, $chartPlotWidth, $trendDays): float {
+    $steps = max(1, count($trendDays) - 1);
+
+    return round($chartPadLeft + ($index * ($chartPlotWidth / $steps)), 2);
+};
+$chartY = static function (int $value) use ($chartPadTop, $chartPlotHeight, $chartScale): float {
+    $max = max(1, $chartScale['max']);
+
+    return round($chartPadTop + $chartPlotHeight * (1 - ($value / $max)), 2);
+};
+
+// Grouped "this week vs previous week" bars. The 480x195 box keeps the same
+// 640:260 aspect ratio as the line chart, so with equal grid columns both
+// charts render at exactly the same dimensions.
+$barWidth = 480;
+$barHeight = 195;
+$barPadLeft = 10;
+$barPadRight = 10;
+$barPadTop = 28;
+$barPadBottom = 30;
+$barPlotWidth = $barWidth - $barPadLeft - $barPadRight;
+$barPlotHeight = $barHeight - $barPadTop - $barPadBottom;
+$barBaseline = $barPadTop + $barPlotHeight;
+$barGroupWidth = $barPlotWidth / max(1, count($barSeries));
+$barEach = min($barGroupWidth * 0.3, 30.0);
+
+$barGeometry = [];
+$barIndex = 0;
+foreach ($barSeries as $trendKey => $bar) {
+    $previousHeight = round($barPlotHeight * ($bar['previous'] / max(1, $barPeak)), 2);
+    $currentHeight = round($barPlotHeight * ($bar['current'] / max(1, $barPeak)), 2);
+    $centre = round($barPadLeft + $barGroupWidth * ($barIndex + 0.5), 2);
+
+    $barGeometry[$trendKey] = [
+        'centreX' => $centre,
+        'currentX' => round($centre + 2, 2),
+        'currentY' => round($barBaseline - $currentHeight, 2),
+        'currentHeight' => $currentHeight,
+        'previousX' => round($centre - 2 - $barEach, 2),
+        'previousY' => round($barBaseline - $previousHeight, 2),
+        'previousHeight' => $previousHeight,
+    ];
+    $barIndex++;
+}
+
+// Growth numbers that are not one of the four charted series stay visible.
+$growthStrip = [
+    ['label' => t('super.active_users'), 'value' => (int) $metrics['active_7d']],
+    ['label' => t('super.signups_30d'), 'value' => (int) $metrics['signups_30d']],
+    ['label' => t('super.admins'), 'value' => (int) $metrics['admins']],
+    ['label' => t('super.creators_total'), 'value' => (int) $metrics['creators_total']],
+    ['label' => t('super.staff_total'), 'value' => (int) $metrics['staff_total']],
+    ['label' => t('super.facts_total'), 'value' => (int) $metrics['facts_total']],
+];
 
 // Four hero tiles; every trend comes from the real last-7-days series above.
 $statCards = [
@@ -190,48 +335,194 @@ $statCards = [
         <h2 id="super-growth-title"><?= e(t('super.growth')) ?></h2>
         <span class="admin-muted"><?= e(t('super.since')) ?></span>
     </div>
-    <dl class="meta-grid meta-grid--4">
-        <div class="meta-item">
-            <dt><?= e(t('super.new_users')) ?></dt>
-            <dd><?= e((string) $metrics['signups_7d']) ?></dd>
-        </div>
-        <div class="meta-item">
-            <dt><?= e(t('super.active_users')) ?></dt>
-            <dd><?= e((string) $metrics['active_7d']) ?></dd>
-        </div>
-        <div class="meta-item">
-            <dt><?= e(t('super.new_projects')) ?></dt>
-            <dd><?= e((string) $metrics['projects_7d']) ?></dd>
-        </div>
-        <div class="meta-item">
-            <dt><?= e(t('super.new_drafts')) ?></dt>
-            <dd><?= e((string) $metrics['drafts_7d']) ?></dd>
-        </div>
-        <div class="meta-item">
-            <dt><?= e(t('super.signups_30d')) ?></dt>
-            <dd><?= e((string) $metrics['signups_30d']) ?></dd>
-        </div>
-        <div class="meta-item">
-            <dt><?= e(t('super.admins')) ?></dt>
-            <dd><?= e((string) $metrics['admins']) ?></dd>
-        </div>
-        <div class="meta-item">
-            <dt><?= e(t('super.creators_total')) ?></dt>
-            <dd><?= e((string) $metrics['creators_total']) ?></dd>
-        </div>
-        <div class="meta-item">
-            <dt><?= e(t('super.staff_total')) ?></dt>
-            <dd><?= e((string) $metrics['staff_total']) ?></dd>
-        </div>
-        <div class="meta-item">
-            <dt><?= e(t('super.facts_total')) ?></dt>
-            <dd><?= e((string) $metrics['facts_total']) ?></dd>
-        </div>
-        <div class="meta-item">
-            <dt><?= e(t('super.audit_24h')) ?></dt>
-            <dd><?= e((string) $metrics['audit_24h']) ?></dd>
-        </div>
+
+    <dl class="growth-strip">
+        <?php foreach ($growthStrip as $item): ?>
+            <div class="growth-strip__item">
+                <dt><?= e($item['label']) ?></dt>
+                <dd><?= e((string) $item['value']) ?></dd>
+            </div>
+        <?php endforeach; ?>
     </dl>
+
+    <div class="growth-grid">
+        <section class="growth-chart" aria-labelledby="growth-chart-title">
+            <div class="growth-chart__head">
+                <h3 id="growth-chart-title"><?= e(t('super.last_7_days')) ?></h3>
+                <span class="growth-chart__hint"><?= e(t('super.total')) ?></span>
+            </div>
+            <svg class="growth-chart__svg" viewBox="0 0 <?= e((string) $chartWidth) ?> <?= e((string) $chartHeight) ?>" aria-hidden="true" focusable="false">
+                <?php foreach ($chartScale['ticks'] as $tick): ?>
+                    <line
+                        class="growth-chart__grid<?= $tick === 0 ? ' growth-chart__grid--base' : '' ?>"
+                        x1="<?= e($chartPadLeft) ?>"
+                        y1="<?= e($chartY($tick)) ?>"
+                        x2="<?= e($chartPadLeft + $chartPlotWidth) ?>"
+                        y2="<?= e($chartY($tick)) ?>"
+                    />
+                    <text
+                        class="growth-chart__axis"
+                        x="<?= e($chartPadLeft - 8) ?>"
+                        y="<?= e($chartY($tick) + 3.5) ?>"
+                        text-anchor="end"
+                    ><?= e((string) $tick) ?></text>
+                <?php endforeach; ?>
+
+                <?php foreach (array_keys($trendDays) as $index): ?>
+                    <?php
+                    $anchor = $index === 0 ? 'start' : ($index === count($trendDays) - 1 ? 'end' : 'middle');
+                    ?>
+                    <text
+                        class="growth-chart__axis growth-chart__axis--x"
+                        x="<?= e($chartX($index)) ?>"
+                        y="<?= e($chartHeight - 9) ?>"
+                        text-anchor="<?= e($anchor) ?>"
+                    ><?= e($trendDayLabel($index)) ?></text>
+                <?php endforeach; ?>
+
+                <?php foreach ($chartSeries as $series): ?>
+                    <?php
+                    $linePath = '';
+                    $areaPath = 'M ' . $chartX(0) . ' ' . $chartBaseline;
+                    foreach ($series['values'] as $index => $value) {
+                        $point = $chartX($index) . ' ' . $chartY($value);
+                        $linePath .= ($index === 0 ? 'M ' : ' L ') . $point;
+                        $areaPath .= ' L ' . $point;
+                    }
+                    $areaPath .= ' L ' . $chartX(count($series['values']) - 1) . ' ' . $chartBaseline . ' Z';
+                    ?>
+                    <g class="growth-chart__series growth-chart__series--<?= e($series['tone']) ?>">
+                        <path class="growth-chart__area" d="<?= e($areaPath) ?>" />
+                        <path class="growth-chart__line" d="<?= e($linePath) ?>" pathLength="100" />
+                        <?php foreach ($series['values'] as $index => $value): ?>
+                            <circle class="growth-chart__dot" cx="<?= e($chartX($index)) ?>" cy="<?= e($chartY($value)) ?>" r="3.4">
+                                <title><?= e($series['label'] . ' · ' . $trendDayLabel($index) . ': ' . $value) ?></title>
+                            </circle>
+                        <?php endforeach; ?>
+                    </g>
+                <?php endforeach; ?>
+            </svg>
+
+            <ul class="growth-chart__legend">
+                <?php foreach ($chartSeries as $series): ?>
+                    <li class="growth-chart__legend-item">
+                        <span class="growth-chart__swatch growth-chart__swatch--<?= e($series['tone']) ?>" aria-hidden="true"></span>
+                        <span><?= e($series['label']) ?></span>
+                        <span class="growth-chart__legend-value"><?= e((string) $series['current']) ?></span>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+
+            <table class="visually-hidden growth-chart__data">
+                <caption><?= e(t('super.last_7_days')) ?></caption>
+                <thead>
+                    <tr>
+                        <th scope="col"><?= e(t('super.day')) ?></th>
+                        <?php foreach ($chartMetrics as $meta): ?>
+                            <th scope="col"><?= e($meta['label']) ?></th>
+                        <?php endforeach; ?>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach (array_keys($trendDays) as $index): ?>
+                        <tr>
+                            <th scope="row"><?= e($trendDays[$index]->format('d/m')) ?></th>
+                            <?php foreach ($chartSeries as $series): ?>
+                                <td><?= e((string) $series['values'][$index]) ?></td>
+                            <?php endforeach; ?>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </section>
+
+        <section class="growth-bars" aria-labelledby="growth-bars-title">
+            <div class="growth-bars__head">
+                <h3 id="growth-bars-title"><?= e(t('super.week_compare')) ?></h3>
+            </div>
+            <svg class="growth-bars__svg" viewBox="0 0 <?= e((string) $barWidth) ?> <?= e((string) $barHeight) ?>" aria-hidden="true" focusable="false">
+                <line
+                    class="growth-bars__baseline"
+                    x1="<?= e($barPadLeft) ?>"
+                    y1="<?= e($barBaseline) ?>"
+                    x2="<?= e($barPadLeft + $barPlotWidth) ?>"
+                    y2="<?= e($barBaseline) ?>"
+                />
+                <?php foreach ($barSeries as $trendKey => $bar): ?>
+                    <?php $geometry = $barGeometry[$trendKey]; ?>
+                    <rect
+                        class="growth-bars__bar growth-bars__bar--previous"
+                        x="<?= e($geometry['previousX']) ?>"
+                        y="<?= e($geometry['previousY']) ?>"
+                        width="<?= e($barEach) ?>"
+                        height="<?= e($geometry['previousHeight']) ?>"
+                        rx="3"
+                    >
+                        <title><?= e(t('super.previous_week') . ': ' . $bar['previous']) ?></title>
+                    </rect>
+                    <text
+                        class="growth-bars__value"
+                        x="<?= e($geometry['previousX'] + $barEach / 2) ?>"
+                        y="<?= e(max(18, $geometry['previousY'] - 7)) ?>"
+                        text-anchor="middle"
+                    ><?= e((string) $bar['previous']) ?></text>
+                    <rect
+                        class="growth-bars__bar growth-bars__bar--current"
+                        x="<?= e($geometry['currentX']) ?>"
+                        y="<?= e($geometry['currentY']) ?>"
+                        width="<?= e($barEach) ?>"
+                        height="<?= e($geometry['currentHeight']) ?>"
+                        rx="3"
+                    >
+                        <title><?= e(t('super.this_week') . ': ' . $bar['current']) ?></title>
+                    </rect>
+                    <text
+                        class="growth-bars__value"
+                        x="<?= e($geometry['currentX'] + $barEach / 2) ?>"
+                        y="<?= e(max(18, $geometry['currentY'] - 7)) ?>"
+                        text-anchor="middle"
+                    ><?= e((string) $bar['current']) ?></text>
+                    <text
+                        class="growth-bars__name"
+                        x="<?= e($geometry['centreX']) ?>"
+                        y="<?= e($barHeight - 8) ?>"
+                        text-anchor="middle"
+                    ><?= e($bar['label']) ?></text>
+                <?php endforeach; ?>
+            </svg>
+
+            <ul class="growth-bars__legend">
+                <li class="growth-bars__legend-item">
+                    <span class="growth-bars__swatch growth-bars__swatch--current" aria-hidden="true"></span>
+                    <?= e(t('super.this_week')) ?>
+                </li>
+                <li class="growth-bars__legend-item">
+                    <span class="growth-bars__swatch growth-bars__swatch--previous" aria-hidden="true"></span>
+                    <?= e(t('super.previous_week')) ?>
+                </li>
+            </ul>
+
+            <table class="visually-hidden growth-bars__data">
+                <caption><?= e(t('super.week_compare')) ?></caption>
+                <thead>
+                    <tr>
+                        <th scope="col"><?= e(t('super.metric')) ?></th>
+                        <th scope="col"><?= e(t('super.this_week')) ?></th>
+                        <th scope="col"><?= e(t('super.previous_week')) ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($barSeries as $bar): ?>
+                        <tr>
+                            <th scope="row"><?= e($bar['label']) ?></th>
+                            <td><?= e((string) $bar['current']) ?></td>
+                            <td><?= e((string) $bar['previous']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </section>
+    </div>
 </section>
 
 <div class="console-columns">

@@ -129,16 +129,20 @@ final class PlatformConsoleService
     }
 
     /**
-     * Last-7-days daily row counts (oldest first, 7 ints) plus the percent
-     * change against the 7 days before that.
+     * Last-7-days daily row counts (oldest first, 7 ints), the totals of this
+     * week and the previous week, and the percent change between them.
      *
      * Real data only: counts come from rows grouped by DATE(created_at) over a
-     * 14-day window; days with no rows are filled with 0. `delta` is null when
-     * the previous period had no rows at all (no percentage can be derived).
+     * 14-day window; days with no rows are filled with 0. `current` is the sum
+     * of `series` (last 7 days), `previous` the sum of the 7 days before that.
+     * `delta` is null when the previous period had no rows at all (no
+     * percentage can be derived); `direction` is still derived from the real
+     * totals comparison (`up`/`down`/`flat`) so surfaces can label the trend
+     * without inventing a percentage.
      *
      * @param string $table internal table literal (never user input)
      * @param string $where internal predicate for that table (never user input)
-     * @return array{series: list<int>, delta: int|null}
+     * @return array{series: list<int>, delta: int|null, current: int, previous: int, direction: 'up'|'down'|'flat'}
      */
     private static function dailyTrend(string $table, string $where = '1 = 1'): array
     {
@@ -174,8 +178,17 @@ final class PlatformConsoleService
         $delta = $previousTotal === 0
             ? null
             : (int) round((($currentTotal - $previousTotal) / $previousTotal) * 100);
+        $direction = $currentTotal > $previousTotal
+            ? 'up'
+            : ($currentTotal < $previousTotal ? 'down' : 'flat');
 
-        return ['series' => $series, 'delta' => $delta];
+        return [
+            'series' => $series,
+            'delta' => $delta,
+            'current' => $currentTotal,
+            'previous' => $previousTotal,
+            'direction' => $direction,
+        ];
     }
 
     private static function directorySize(string $path): int

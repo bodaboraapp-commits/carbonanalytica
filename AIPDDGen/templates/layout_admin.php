@@ -27,10 +27,33 @@ $adminFirstName = $adminUser !== null ? explode(' ', trim((string) $adminUser['n
 $adminBadge = isset($taskBadge) ? (int) $taskBadge : 0;
 
 $isActive = static fn (string $path): bool => $adminPath === $path || str_starts_with($adminPath, $path . '/');
-$navLink = static function (string $href, string $label, bool $active, int $badge = 0) use ($adminBadge): void {
+
+/** Inline line icons for the console side panel (decorative: rendered aria-hidden). */
+$navIcon = static function (string $name): string {
+    $stroke = 'fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"';
+    $paths = [
+        'overview' => 'M3 3h7v9H3zM3 16h7v5H3zM14 3h7v5h-7zM14 12h7v9h-7z',
+        'queue' => 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2M9 12h6M9 16h4',
+        'workspaces' => 'M3 21h18M5 21V7l7-4 7 4v14M9.5 21v-5.5h5V21',
+        'kyc' => 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4',
+        'users' => 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+        'templates' => 'M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
+        'audit' => 'M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8M12 7v5l4 2',
+        'database' => 'M12 2C8 2 4 3 4 6s4 4 8 4 8-1 8-4-4-4-8-4zM4 6v6c0 3 4 4 8 4s8-1 8-4V6M4 12v6c0 3 4 4 8 4s8-1 8-4v-6',
+        'workspace' => 'M3 10.5 12 3l9 7.5M5 9.5V21h14V9.5M9 21v-6h6v6',
+        'external' => 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM2 12h20M12 2c2.5 3 2.5 17 0 20M12 2c-2.5 3-2.5 17 0 20',
+        'logout' => 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
+    ];
+    $path = $paths[$name] ?? '';
+
+    return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="' . $path . '" ' . $stroke . '/></svg>';
+};
+
+$navLink = static function (string $icon, string $href, string $label, bool $active, int $badge = 0) use ($navIcon): void {
     ?>
     <a class="admin-nav-link" href="<?= e(url($href)) ?>" <?= $active ? 'aria-current="page"' : '' ?>>
-        <span><?= e($label) ?></span>
+        <span class="admin-nav-link__icon" aria-hidden="true"><?= $navIcon($icon) ?></span>
+        <span class="admin-nav-link__label"><?= e($label) ?></span>
         <?php if ($badge > 0): ?>
             <span class="admin-nav-link__badge" aria-label="<?= e(t('console.menu_alerts_badge', ['count' => $badge])) ?>"><?= e((string) $badge) ?></span>
         <?php endif; ?>
@@ -108,36 +131,51 @@ $navLink = static function (string $href, string $label, bool $active, int $badg
         <nav class="admin-sidebar__nav">
             <div class="admin-nav-group">
                 <p class="admin-nav-group__title"><?= e(t('console.menu_overview')) ?></p>
-                <?php $navLink('/admin', t('console.nav_overview'), $adminPath === '/admin'); ?>
+                <?php $navLink('overview', '/admin', t('console.nav_overview'), $adminPath === '/admin'); ?>
             </div>
 
             <div class="admin-nav-group">
                 <p class="admin-nav-group__title"><?= e(t('console.menu_operations')) ?></p>
-                <?php $navLink('/admin/tasks', t('console.nav_job_queue'), $isActive('/admin/tasks'), $adminBadge); ?>
-                <?php $navLink('/admin/workspaces', t('console.nav_workspaces'), $isActive('/admin/workspaces')); ?>
-                <?php $navLink('/admin/kyc', t('console.nav_kyc'), $isActive('/admin/kyc')); ?>
-                <?php $navLink('/admin/users', t('console.nav_users'), $isActive('/admin/users')); ?>
+                <?php $navLink('queue', '/admin/tasks', t('console.nav_job_queue'), $isActive('/admin/tasks'), $adminBadge); ?>
+                <?php $navLink('workspaces', '/admin/workspaces', t('console.nav_workspaces'), $isActive('/admin/workspaces')); ?>
+                <?php $navLink('kyc', '/admin/kyc', t('console.nav_kyc'), $isActive('/admin/kyc')); ?>
+                <?php $navLink('users', '/admin/users', t('console.nav_users'), $isActive('/admin/users')); ?>
             </div>
 
             <div class="admin-nav-group">
                 <p class="admin-nav-group__title"><?= e(t('console.menu_content')) ?></p>
-                <?php $navLink('/admin/templates', t('console.nav_templates'), $isActive('/admin/templates')); ?>
-                <?php $navLink('/admin/audit', t('console.nav_audit'), $isActive('/admin/audit')); ?>
+                <?php $navLink('templates', '/admin/templates', t('console.nav_templates'), $isActive('/admin/templates')); ?>
+                <?php $navLink('audit', '/admin/audit', t('console.nav_audit'), $isActive('/admin/audit')); ?>
             </div>
 
             <div class="admin-nav-group">
                 <p class="admin-nav-group__title"><?= e(t('console.menu_system')) ?></p>
-                <?php $navLink('/admin/database', t('console.nav_database'), $isActive('/admin/database')); ?>
+                <?php $navLink('database', '/admin/database', t('console.nav_database'), $isActive('/admin/database')); ?>
             </div>
         </nav>
 
         <div class="admin-sidebar__foot">
-            <span><?= e(t('console.menu_signed_in')) ?></span>
-            <strong><?= e((string) ($adminUser['name'] ?? '')) ?></strong>
-            <span><?= e((string) ($adminUser['email'] ?? '')) ?></span>
+            <div class="admin-sidebar__user">
+                <span class="admin-sidebar__user-label"><?= e(t('console.menu_signed_in')) ?></span>
+                <strong><?= e((string) ($adminUser['name'] ?? '')) ?></strong>
+                <span class="admin-sidebar__user-email"><?= e((string) ($adminUser['email'] ?? '')) ?></span>
+            </div>
             <div class="admin-sidebar__links">
-                <a href="<?= e(url('/dashboard')) ?>"><?= e(t('admin.my_workspace')) ?></a>
-                <a href="<?= e(url('/')) ?>"><?= e(t('admin.public_portal')) ?></a>
+                <a class="admin-sidebar__link" href="<?= e(url('/dashboard')) ?>">
+                    <span class="admin-sidebar__link-icon" aria-hidden="true"><?= $navIcon('workspace') ?></span>
+                    <span><?= e(t('admin.my_workspace')) ?></span>
+                </a>
+                <a class="admin-sidebar__link" href="<?= e(url('/')) ?>">
+                    <span class="admin-sidebar__link-icon" aria-hidden="true"><?= $navIcon('external') ?></span>
+                    <span><?= e(t('admin.public_portal')) ?></span>
+                </a>
+                <form class="admin-sidebar__signout" method="post" action="<?= e(url('/logout')) ?>">
+                    <?= csrf_field() ?>
+                    <button class="admin-sidebar__link admin-sidebar__link--danger" type="submit">
+                        <span class="admin-sidebar__link-icon" aria-hidden="true"><?= $navIcon('logout') ?></span>
+                        <span><?= e(t('nav.sign_out')) ?></span>
+                    </button>
+                </form>
             </div>
         </div>
     </aside>

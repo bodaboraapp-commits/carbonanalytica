@@ -43,7 +43,7 @@ The workspace dashboard shows a **Team** card listing both groups with names, em
 
 | Page | What it shows |
 | --- | --- |
-| `/admin` | **Super Admin dashboard**: platform KPIs, 7-day growth (users, active users, projects, drafts), system health (pending migrations, DB size, storage, disk, mail transport, environment), platform controls (maintenance mode, sign-ups, two-factor), platform totals, newest users/workspaces and recent audit activity |
+| `/admin` | **Super Admin dashboard**: stat cards with real 7-day deltas + sparklines, SVG growth charts (7-day line/area + this-week-vs-previous bars), system health (pending migrations, DB size, storage, disk, mail transport, environment), platform controls (maintenance mode, sign-ups, two-factor), platform totals, newest users/workspaces and recent audit activity |
 | `/admin/workspaces` | Every workspace: name/slug, KYC status (badge), members, projects, created, last activity; search + KYC filter + pagination |
 | `/admin/kyc` | Organisation profiles submitted for verification: company, workspace, status, documents, submitted date, link to the open KYB task; counts per status |
 | `/admin/users` | Every account: name/email, workspace count, platform-admin badge, last sign-in; search + "only platform admins" filter; promote/demote platform admins |
@@ -58,13 +58,14 @@ Platform staff land here automatically after sign-in (a plain login redirects `/
 
 The overview is the **Super Admin dashboard**:
 
-- **Stats**: workspaces, projects, users, open review tasks (with breached-SLA badge), plus platform totals (KYC waiting, verified organisations, published templates, documents, plans).
-- **Growth (7 days / 30 days)**: new users, active users, new projects, new drafts, platform admins, facts stored, audit events in the last 24 h.
+- **Stats**: four stat cards (workspaces, projects, users, open review tasks with breached-SLA badge) each with a real 7-day delta, inline SVG sparkline and a trend direction (↑ Increasing / ↓ Decreasing / → No change when the prior week has no rows — never an invented percent), plus platform totals (KYC waiting, verified organisations, published templates, documents, plans).
+- **Growth charts** (server-rendered SVG, no JS library): an equal-sized pair of cards — a 7-day multi-series line/area chart for users, projects, drafts and review tasks (per-point hover titles + visually hidden data table) and a "this week vs previous week" paired bar chart from real totals — with the compact stat strip rendered above them: active users (7d), new users (30d), platform admins, workspace admins, staff/workers and facts stored.
+- **Console chrome**: sticky top bar (search, public portal, language, SLA bell, greeting, sign-out) plus a Montra-style floating left panel — grouped uppercase sections, icon+label rows, solid green active pill, account block and a CSRF sign-out row; collapses behind a CSS-only Menu toggle under 980px.
 - **System health**: pending migrations, database size, storage usage, free disk, email transport, environment and PHP version.
-- **Platform controls** (audited as `admin.settings.changed`, stored in `platform_settings` ? migration `0007`):
-  - **Maintenance mode** ? when on, non-staff visitors get a `503` maintenance page; staff keep full access and can still sign in (`/login` stays reachable).
-  - **Sign-ups** ? when off, the public `/signup` page closes with a notice; invitations still work.
-  - **Two-factor sign-in** ? per-account email OTP toggle.
+- **Platform controls** (audited as `admin.settings.changed`, stored in `platform_settings` — migration `0007`):
+  - **Maintenance mode** — when on, non-staff visitors get a `503` maintenance page; staff keep full access and can still sign in (`/login` stays reachable).
+  - **Sign-ups** — when off, the public `/signup` page closes with a notice; invitations still work.
+  - **Two-factor sign-in** — per-account email OTP toggle.
 - **Quick actions**: open queue, review KYC, manage database; newest users/workspaces and recent audit activity are listed below.
 
 Data sources: `src/Services/PlatformConsoleService.php` (all pages re-check the platform-admin flag), `src/Services/TaskCenterService.php` + `src/Repositories/ReviewTaskRepository.php` for the job queue.
