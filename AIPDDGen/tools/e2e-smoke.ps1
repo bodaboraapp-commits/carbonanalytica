@@ -121,6 +121,48 @@ $ownerEmail = "e2e-owner-$stamp@pddgen.local"
 $inviteeEmail = "e2e-invitee-$stamp@pddgen.local"
 $password = 'correct horse battery staple'
 
+# --- Email one-time codes -------------------------------------------------
+# The dev server writes every message to storage/logs/mail.log (in development
+# this happens even when Resend is the configured transport), so the smoke test
+# can read the code the way a developer would.
+$script:mailLogPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'storage/logs/mail.log'
+
+function Get-OtpCode {
+    param([Parameter(Mandatory)] [string] $Email)
+
+    if (-not (Test-Path -LiteralPath $script:mailLogPath)) {
+        throw "mail.log not found at $($script:mailLogPath)"
+    }
+    $content = Get-Content -LiteralPath $script:mailLogPath -Raw
+    if (-not $content) { throw 'mail.log is empty' }
+
+    $needle = [regex]::Escape("to=$Email kind=otp")
+    $found = $null
+    foreach ($block in ($content -split '-{20,}')) {
+        if ($block -match $needle) { $found = $block }
+    }
+    if ($null -eq $found) { throw "no OTP email for $Email in mail.log" }
+
+    $match = [regex]::Match($found, '(?m)^\s*(\d{6})\s*$')
+    if (-not $match.Success) { throw "no six-digit code in the OTP email for $Email" }
+    return $match.Groups[1].Value
+}
+
+# Submit the emailed code from a fresh /verify-otp page, one digit per box.
+function Complete-Otp {
+    param([Parameter(Mandatory)] [string] $Email, $Session)
+
+    $codePage = Invoke-Request '/verify-otp' -Session $Session
+    $token = Get-CsrfToken $codePage.Content
+    $code = Get-OtpCode -Email $Email
+
+    $fields = @{ _csrf = $token }
+    for ($index = 0; $index -lt 6; $index++) {
+        $fields["code[$index]"] = $code.Substring($index, 1)
+    }
+    return Invoke-Request '/verify-otp' -Method POST -Session $Session -NoRedirect -Body $fields
+}
+
 Write-Output '--- public pages ---'
 $homePage = Invoke-Request '/'
 Check 'home page renders' ($homePage.Status -eq 200 -and $homePage.Content -match 'validator-ready')
@@ -141,7 +183,37 @@ $signup = Invoke-Request '/signup' -Method POST -Session $owner -NoRedirect -Bod
     next      = '/dashboard'
 }
 Check 'signup redirects (303)' ($signup.Status -eq 303) "status=$($signup.Status)"
-Check 'signup redirects to dashboard' ($signup.Location -like '*/dashboard*') "location=$($signup.Location)"
+Check 'signup starts the one-time-code screen' ($signup.Location -like '*/verify-otp*') "location=$($signup.Location)"
+
+$verifyPage = Invoke-Request '/verify-otp' -Session $owner
+Check 'code screen renders' ($verifyPage.Status -eq 200 -and $verifyPage.Content -match '6-digit verification code')
+Check 'code screen marks the email address' ($verifyPage.Content -match 'e\*+@pddgen\.local')
+
+$boxCount = ([regex]::Matches($verifyPage.Content, 'name="code\[\]"')).Count
+Check 'code screen shows six digit boxes' ($boxCount -eq 6) "boxes=$boxCount"
+
+$beforeCode = Invoke-Request '/dashboard' -Session $owner -NoRedirect
+Check 'no session is created before the code' ($beforeCode.Status -eq 303 -and $beforeCode.Location -like '*/verify-otp*') "status=$($beforeCode.Status) location=$($beforeCode.Location)"
+
+$verifyToken = Get-CsrfToken $verifyPage.Content
+$wrongCode = if ((Get-OtpCode -Email $ownerEmail) -eq '000000') { '111111' } else { '000000' }
+$wrongBody = @{ _csrf = $verifyToken }
+for ($index = 0; $index -lt 6; $index++) { $wrongBody["code[$index]"] = $wrongCode.Substring($index, 1) }
+$wrongAttempt = Invoke-Request '/verify-otp' -Method POST -Session $owner -NoRedirect -Body $wrongBody
+Check 'a wrong code is refused' ($wrongAttempt.Status -eq 303 -and $wrongAttempt.Location -like '*/verify-otp*') "status=$($wrongAttempt.Status)"
+$afterWrong = Invoke-Request '/verify-otp' -Session $owner
+Check 'a wrong code shows an error' ($afterWrong.Content -match 'not correct')
+
+# One empty box is not a six-digit code and must not reach the verifier.
+$partialBody = @{ _csrf = $verifyToken }
+for ($index = 0; $index -lt 5; $index++) { $partialBody["code[$index]"] = '1' }
+$partial = Invoke-Request '/verify-otp' -Method POST -Session $owner -NoRedirect -Body $partialBody
+Check 'an incomplete code is refused' ($partial.Status -eq 303 -and $partial.Location -like '*/verify-otp*') "status=$($partial.Status)"
+$afterPartial = Invoke-Request '/verify-otp' -Session $owner
+Check 'an incomplete code shows a field error' ($afterPartial.Content -match 'Enter the 6-digit')
+
+$ownerVerified = Complete-Otp -Email $ownerEmail -Session $owner
+Check 'the emailed code signs the owner in' ($ownerVerified.Status -eq 303 -and $ownerVerified.Location -like '*/dashboard*') "status=$($ownerVerified.Status) location=$($ownerVerified.Location)"
 
 $dashboard = Invoke-Request '/dashboard' -Session $owner
 Check 'dashboard loads for signed-in owner' ($dashboard.Status -eq 200)
@@ -195,6 +267,10 @@ $signup2 = Invoke-Request '/signup' -Method POST -Session $invitee -NoRedirect -
     next     = $invitePath
 }
 Check 'invitee signup redirects' ($signup2.Status -eq 303) "status=$($signup2.Status)"
+Check 'invitee signup starts the code screen' ($signup2.Location -like '*/verify-otp*') "location=$($signup2.Location)"
+
+$inviteeVerified = Complete-Otp -Email $inviteeEmail -Session $invitee
+Check 'invitee code verifies and returns to the invitation' ($inviteeVerified.Status -eq 303 -and $inviteeVerified.Location -like '*invite*') "status=$($inviteeVerified.Status) location=$($inviteeVerified.Location)"
 
 $invitePageLoggedIn = Invoke-Request $invitePath -Session $invitee
 Check 'invite page shows accept button' ($invitePageLoggedIn.Content -match 'Accept invitation')
@@ -311,6 +387,8 @@ $intruderSignup = Invoke-Request '/signup' -Method POST -Session $intruder -NoRe
     next     = '/dashboard'
 }
 Check 'intruder signs up' ($intruderSignup.Status -eq 303)
+$intruderVerified = Complete-Otp -Email "e2e-intruder-$stamp@pddgen.local" -Session $intruder
+Check 'intruder verifies the code' ($intruderVerified.Status -eq 303 -and $intruderVerified.Location -like '*/dashboard*') "status=$($intruderVerified.Status)"
 
 $crossTenant = Invoke-Request $projectPath -Session $intruder
 Check 'cross-tenant project is 404' ($crossTenant.Status -eq 404) "status=$($crossTenant.Status)"
@@ -337,6 +415,80 @@ Check 'logout redirects to login' ($logout.Status -eq 303 -and $logout.Location 
 $afterLogout = Invoke-Request '/dashboard' -Session $owner -NoRedirect
 Check 'dashboard requires sign-in after logout' ($afterLogout.Status -eq 303) "status=$($afterLogout.Status)"
 
+Write-Output '--- sign-in: password only by default ---'
+$reauth = New-Client
+$reauthLoginPage = Invoke-Request '/login' -Session $reauth
+$reauthToken = Get-CsrfToken $reauthLoginPage.Content
+$passwordOnly = Invoke-Request '/login' -Method POST -Session $reauth -NoRedirect -Body @{
+    _csrf    = $reauthToken
+    email    = $ownerEmail
+    password = $password
+    next     = '/dashboard'
+}
+Check 'password-only sign-in opens the session' ($passwordOnly.Status -eq 303 -and $passwordOnly.Location -like '*/dashboard*') "status=$($passwordOnly.Status) location=$($passwordOnly.Location)"
+$reauthDashboard = Invoke-Request '/dashboard' -Session $reauth
+Check 'password-only sign-in reaches the dashboard' ($reauthDashboard.Status -eq 200)
+$reauthLogoutToken = Get-CsrfToken $reauthDashboard.Content
+Invoke-Request '/logout' -Method POST -Session $reauth -NoRedirect -Body @{ _csrf = $reauthLogoutToken } | Out-Null
+
+Write-Output '--- optional two-factor from the staff console ---'
+$staff = New-Client
+$staffLoginPage = Invoke-Request '/login' -Session $staff
+$staffToken = Get-CsrfToken $staffLoginPage.Content
+$staffLogin = Invoke-Request '/login' -Method POST -Session $staff -NoRedirect -Body @{
+    _csrf    = $staffToken
+    email    = 'admin@pddgen.local'
+    password = 'AdminPassw0rd!123'
+    next     = '/dashboard'
+}
+if ($staffLogin.Status -eq 303 -and $staffLogin.Location -like '*/verify-otp*') {
+    # A previous run left the preference on: finish its challenge first.
+    $staffLogin = Complete-Otp -Email 'admin@pddgen.local' -Session $staff
+}
+Check 'staff account signs in with the password' ($staffLogin.Status -eq 303 -and $staffLogin.Location -like '*/dashboard*') "location=$($staffLogin.Location)"
+
+$staffAdmin = Invoke-Request '/admin' -Session $staff
+Check 'staff console shows the security panel' ($staffAdmin.Status -eq 200 -and $staffAdmin.Content -match 'Sign-in security')
+$staffAdminToken = Get-CsrfToken $staffAdmin.Content
+if ($staffAdmin.Content -match 'Turn off two-factor') {
+    # Normalise a leftover setting before testing the switch.
+    Invoke-Request '/admin/security/otp' -Method POST -Session $staff -NoRedirect -Body @{ _csrf = $staffAdminToken } | Out-Null
+    $staffAdmin = Invoke-Request '/admin' -Session $staff
+    $staffAdminToken = Get-CsrfToken $staffAdmin.Content
+}
+$toggleOn = Invoke-Request '/admin/security/otp' -Method POST -Session $staff -NoRedirect -Body @{ _csrf = $staffAdminToken }
+Check 'staff can turn two-factor on' ($toggleOn.Status -eq 303) "status=$($toggleOn.Status)"
+$staffAfterToggle = Invoke-Request '/admin' -Session $staff
+Check 'security panel shows two-factor on' ($staffAfterToggle.Content -match 'Turn off two-factor')
+
+$staffDashboard = Invoke-Request '/dashboard' -Session $staff
+$staffLogoutToken = Get-CsrfToken $staffDashboard.Content
+Invoke-Request '/logout' -Method POST -Session $staff -NoRedirect -Body @{ _csrf = $staffLogoutToken } | Out-Null
+
+$staff2 = New-Client
+$staffLoginPage2 = Invoke-Request '/login' -Session $staff2
+$staffToken2 = Get-CsrfToken $staffLoginPage2.Content
+$staffLogin2 = Invoke-Request '/login' -Method POST -Session $staff2 -NoRedirect -Body @{
+    _csrf    = $staffToken2
+    email    = 'admin@pddgen.local'
+    password = 'AdminPassw0rd!123'
+    next     = '/dashboard'
+}
+Check 'two-factor account is challenged after the password' ($staffLogin2.Status -eq 303 -and $staffLogin2.Location -like '*/verify-otp*') "location=$($staffLogin2.Location)"
+$staffCodePage = Invoke-Request '/verify-otp' -Session $staff2
+$staffBoxes = ([regex]::Matches($staffCodePage.Content, 'name="code\[\]"')).Count
+Check 'sign-in challenge shows six digit boxes' ($staffBoxes -eq 6) "boxes=$staffBoxes"
+$staffVerified = Complete-Otp -Email 'admin@pddgen.local' -Session $staff2
+Check 'the sign-in code completes the two-factor login' ($staffVerified.Status -eq 303 -and $staffVerified.Location -like '*/dashboard*') "location=$($staffVerified.Location)"
+
+$staffAdmin2 = Invoke-Request '/admin' -Session $staff2
+$staffAdminToken2 = Get-CsrfToken $staffAdmin2.Content
+$toggleOff = Invoke-Request '/admin/security/otp' -Method POST -Session $staff2 -NoRedirect -Body @{ _csrf = $staffAdminToken2 }
+Check 'staff can turn two-factor off again' ($toggleOff.Status -eq 303) "status=$($toggleOff.Status)"
+$staffDashboard2 = Invoke-Request '/dashboard' -Session $staff2
+$staffLogoutToken2 = Get-CsrfToken $staffDashboard2.Content
+Invoke-Request '/logout' -Method POST -Session $staff2 -NoRedirect -Body @{ _csrf = $staffLogoutToken2 } | Out-Null
+
 Write-Output '--- demo account from seed ---'
 $demo = New-Client
 $demoLoginPage = Invoke-Request '/login' -Session $demo
@@ -347,7 +499,7 @@ $demoLogin = Invoke-Request '/login' -Method POST -Session $demo -NoRedirect -Bo
     password = 'DemoPassw0rd!123'
     next     = '/dashboard'
 }
-Check 'seeded demo account can sign in' ($demoLogin.Status -eq 303) "status=$($demoLogin.Status)"
+Check 'seeded demo account signs in' ($demoLogin.Status -eq 303 -and $demoLogin.Location -like '*/dashboard*') "status=$($demoLogin.Status) location=$($demoLogin.Location)"
 $demoDashboard = Invoke-Request '/dashboard' -Session $demo
 Check 'demo workspace lists seeded projects' ($demoDashboard.Content -match 'Kisumu Clean Cookstoves')
 

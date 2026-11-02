@@ -132,3 +132,30 @@ Short records of the choices that shape the codebase. Each one lists the context
 **Decision.** `App\Mailer` writes every message to `email_outbox` and, for the `log` transport, to `storage/logs/mail.log`. Verification, reset and invitation links are visible in logs during development. Swapping `EMAIL_TRANSPORT` to a real SMTP/SES implementation is a single class change.
 
 **Consequences.** Sign-up never fails because of a mail outage, and tests can assert on the outbox (`tests/helpers.php` extracts tokens from emails).
+
+---
+
+## ADR-010: Resend transport and emailed one-time codes for sign-up and sign-in
+
+**Status:** accepted.
+
+**Context.** Link-based email verification proved mailbox ownership once, at sign-up, and a password alone created a session. The product owner asked for OTP verification through Resend on sign-up and sign-in.
+
+**Decision.**
+
+- `App\ResendTransport` posts to the Resend HTTP API; `App\Mailer` keeps the outbox contract (table row per message, delivery errors recorded, never thrown) and adds the provider message id.
+- Sign-up sends a six-digit code (purpose `signup`) and marks the address verified when it is entered.
+- Sign-in checks the password, then always sends a code (purpose `signin`); no session exists until the code is verified.
+- Codes live in `otp_codes` as SHA-256 hashes, expire in 10 minutes, are single use, die after 5 wrong attempts, and are rate limited on resend and verification.
+- The pending state is session data without a user id, so every signed-in route stays closed until the second factor passes.
+- Fixture domains (`pddgen.local`, `example.com`, `example.org`) never reach the provider, and outside production message bodies are mirrored to `storage/logs/mail.log` so codes stay reachable locally.
+
+**Consequences.**
+
+- (+) Mailbox ownership is proven on every sign-in, not just once; a stolen password alone is not enough.
+- (+) Email delivery is a real provider integration, still swappable behind `Mailer`, and a provider outage cannot corrupt sign-up.
+- (+) Tests and the e2e smoke test read codes from the outbox/log, so the suite needs no mail service.
+- (−) Every sign-in now costs an email and a code entry; compromised mailboxes are the remaining weak link (no TOTP yet).
+- (−) The Resend key is a deployment secret; it belongs in `.env.local`/environment, never in the repository.
+
+**Update (same day, product–owner feedback):** the sign-in second factor is now **opt-in per account** (`users.otp_enabled`, default off; migration `0006_otp_preference.sql`). Sign-in sends a code only when the account has switched it on from the staff Action Center; sign-up email verification still always uses a code. The code screen renders six single-digit boxes, assembled server-side by slot index and enhanced with auto-advance/paste in `public/assets/otp.js`.

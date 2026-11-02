@@ -29,6 +29,9 @@ final class AuthController extends Controller
         if (Auth::check()) {
             Http::redirect('/dashboard');
         }
+        if (Auth::pending() !== null) {
+            Http::redirect('/verify-otp');
+        }
 
         \App\View::render('pages/login', [
             'email' => (string) (Http::queryString('email') ?? ''),
@@ -49,11 +52,35 @@ final class AuthController extends Controller
                 'password' => 'required|max:200',
             ]);
 
+            // Two-factor is opt-in per account and off by default (migration
+            // 0006). With it off, the password establishes the session; with it
+            // on, no session exists until the emailed code is verified.
             $user = AuthService::signIn($input['email'], $input['password']);
-            Auth::login($user);
-            Session::set('default_team_id', $user['default_team_id']);
-            $this->flash('success', t('flash.signed_in'));
-            Http::redirect($next);
+
+            if ((int) ($user['otp_enabled'] ?? 0) !== 1) {
+                Auth::clearPending();
+                $user = AuthService::completePasswordSignIn($user);
+                Auth::login($user);
+                Session::set('default_team_id', $user['default_team_id']);
+                $this->flash('success', t('flash.signed_in'));
+                Http::redirect($next);
+            }
+
+            $challenge = AuthService::startOtpChallenge($user, 'signin');
+
+            Auth::clearPending();
+            Auth::setPending([
+                'user_id' => (string) $user['id'],
+                'purpose' => 'signin',
+                'email' => (string) $user['email'],
+                'next' => $next,
+                'expires_at' => time() + (int) Config::get('auth.otp_pending_ttl'),
+                'delivered' => $challenge['delivered'],
+                'delivery_error' => $challenge['delivery_error'],
+            ]);
+
+            $this->flash('success', t('flash.otp_sent'));
+            Http::redirect('/verify-otp');
         } catch (AppError $error) {
             $this->rememberInput(['email' => $email]);
             $this->backWithError($error, '/login?next=' . rawurlencode($next));
@@ -64,6 +91,9 @@ final class AuthController extends Controller
     {
         if (Auth::check()) {
             Http::redirect('/dashboard');
+        }
+        if (Auth::pending() !== null) {
+            Http::redirect('/verify-otp');
         }
 
         \App\View::render('pages/signup', [
@@ -89,10 +119,21 @@ final class AuthController extends Controller
             ]);
 
             $created = AuthService::signUp($input['name'], $input['email'], $input['password'], I18n::locale());
-            Auth::login($created['user']);
-            Session::set('default_team_id', $created['team']['id']);
-            $this->flash('success', t('flash.account_created'));
-            Http::redirect($next);
+            $challenge = AuthService::startOtpChallenge($created['user'], 'signup');
+
+            Auth::clearPending();
+            Auth::setPending([
+                'user_id' => (string) $created['user']['id'],
+                'purpose' => 'signup',
+                'email' => (string) $created['user']['email'],
+                'next' => $next,
+                'expires_at' => time() + (int) Config::get('auth.otp_pending_ttl'),
+                'delivered' => $challenge['delivered'],
+                'delivery_error' => $challenge['delivery_error'],
+            ]);
+
+            $this->flash('success', t('flash.otp_sent'));
+            Http::redirect('/verify-otp');
         } catch (AppError $error) {
             $this->rememberInput(['name' => $name, 'email' => $email]);
             $this->backWithError($error, '/signup');
@@ -157,43 +198,80 @@ final class AuthController extends Controller
         }
     }
 
-    public function verifyEmail(array $params): never
+    /** The one-time-code screen shared by sign-up verification and sign-in 2FA. */
+    public function showVerifyOtp(array $params): never
     {
-        $token = (string) (Http::queryString('token') ?? '');
-
-        if ($token !== '') {
-            try {
-                $result = AuthService::verifyEmail($token);
-                if (Auth::check()) {
-                    Auth::refresh();
-                }
-                $this->flash('success', t('flash.email_verified'));
-                Http::redirect(Auth::check() ? '/dashboard' : '/login');
-            } catch (AppError $error) {
-                $this->flash('error', I18n::error($error->errorCode));
-                Http::redirect(Auth::check() ? '/dashboard' : '/login');
-            }
+        if (Auth::check()) {
+            Http::redirect('/dashboard');
         }
 
-        // No token: show the "check your inbox" page.
-        $user = Auth::user();
-        \App\View::render('pages/verify-email', [
-            'user' => $user,
+        $pending = Auth::pending();
+        if ($pending === null) {
+            $this->flash('error', t('error.otp_session_expired'));
+            Http::redirect('/login');
+        }
+
+        \App\View::render('pages/verify-otp', [
+            'pending' => $pending,
+            'maskedEmail' => mask_email((string) ($pending['email'] ?? '')),
+            'minutes' => max(1, (int) round(((int) Config::get('auth.otp_ttl')) / 60)),
+            'errors' => Session::takeErrors(),
         ]);
     }
 
-    public function resendVerification(array $params): never
+    public function verifyOtp(array $params): never
     {
-        $user = $this->requireUser();
-
-        try {
-            $sent = AuthService::resendVerification((string) $user['id']);
-            $this->flash('success', $sent ? t('flash.verification_resent') : t('flash.already_verified'));
-        } catch (AppError $error) {
-            $this->backWithError($error, '/dashboard');
+        $pending = Auth::pending();
+        if ($pending === null) {
+            $this->flash('error', t('error.otp_session_expired'));
+            Http::redirect('/login');
         }
 
-        Http::redirect('/dashboard');
+        try {
+            $code = self::otpCodeFromInput($_POST);
+            if (!preg_match('/^\d{6}$/', $code)) {
+                throw AppError::validation(['code' => 'invalid_code']);
+            }
+
+            $result = AuthService::verifyOtp((string) $pending['user_id'], (string) $pending['purpose'], $code);
+            $user = $result['user'];
+
+            Auth::login($user);
+            Session::set('default_team_id', $user['default_team_id']);
+
+            $this->flash('success', $result['newly_verified'] ? t('flash.email_verified') : t('flash.signed_in'));
+            $next = $this->safeNext(is_string($pending['next'] ?? null) ? $pending['next'] : null);
+            Http::redirect($next);
+        } catch (AppError $error) {
+            if ($error->fields !== []) {
+                Session::errors($error->fields);
+            }
+            $this->flash('error', I18n::error($error->errorCode));
+            Http::redirect('/verify-otp');
+        }
+    }
+
+    public function resendOtp(array $params): never
+    {
+        $pending = Auth::pending();
+        if ($pending === null) {
+            $this->flash('error', t('error.otp_session_expired'));
+            Http::redirect('/login');
+        }
+
+        try {
+            $challenge = AuthService::resendOtp((string) $pending['user_id'], (string) $pending['purpose']);
+            Auth::setPending(array_merge($pending, [
+                'delivered' => $challenge['delivered'],
+                'delivery_error' => $challenge['delivery_error'],
+                'expires_at' => time() + (int) Config::get('auth.otp_pending_ttl'),
+            ]));
+            $this->flash('success', t('flash.otp_resent'));
+        } catch (AppError $error) {
+            $this->flash('error', I18n::error($error->errorCode));
+        }
+
+        Http::redirect('/verify-otp');
     }
 
     public function googleRedirect(array $params): never
@@ -244,5 +322,34 @@ final class AuthController extends Controller
             $this->flash('error', I18n::error($error->errorCode));
             Http::redirect('/login');
         }
+    }
+
+    /**
+     * The code arrives as six single-digit `code[]` boxes; a single `code`
+     * field is still accepted so older clients and scripts keep working.
+     *
+     * Slots are read by index rather than concatenated in arrival order: form
+     * fields are not guaranteed to arrive in document order, and a scrambled
+     * code would simply look wrong to the user.
+     *
+     * @param array<string, mixed> $input
+     */
+    private static function otpCodeFromInput(array $input): string
+    {
+        $raw = $input['code'] ?? '';
+
+        if (is_array($raw)) {
+            $code = '';
+            for ($slot = 0; $slot < 6; $slot++) {
+                $digit = $raw[$slot] ?? $raw[(string) $slot] ?? null;
+                if (!is_string($digit) || preg_match('/^\d$/', trim($digit)) !== 1) {
+                    return '';
+                }
+                $code .= trim($digit);
+            }
+            return $code;
+        }
+
+        return is_string($raw) ? trim($raw) : '';
     }
 }

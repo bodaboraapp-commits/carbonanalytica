@@ -2,57 +2,10 @@
 
 declare(strict_types=1);
 
-use App\Db;
 use App\Repositories\UserRepository;
 use App\Services\AuthService;
-use App\Tokens;
-use App\Uuid;
 
 return [
-    'verifies an email address with the emailed token' => static function (): void {
-        $account = make_user('verify@example.com');
-        $email = latest_email('verify@example.com', 'email_verification');
-        $token = token_from_email((string) $email['body_text'], '/verify-email');
-        assert_not_null($token);
-
-        $result = AuthService::verifyEmail($token);
-        assert_same((string) $account['user']['id'], (string) $result['user']['id']);
-        assert_false($result['already_verified']);
-        assert_not_null($result['user']['email_verified_at']);
-
-        assert_same(1, count_rows('audit_logs', "action = 'auth.email_verified'"));
-    },
-
-    'refuses to reuse a verification token' => static function (): void {
-        make_user('reuse@example.com');
-        $email = latest_email('reuse@example.com', 'email_verification');
-        $token = token_from_email((string) $email['body_text'], '/verify-email');
-        assert_not_null($token);
-
-        AuthService::verifyEmail($token);
-
-        assert_app_error('invalid_token', static function () use ($token): void {
-            AuthService::verifyEmail($token);
-        });
-    },
-
-    'refuses an expired verification token' => static function (): void {
-        $account = make_user('expired@example.com');
-        $token = 'expired-' . Tokens::generate();
-
-        Db::insert('verification_tokens', [
-            'id' => Uuid::v4(),
-            'user_id' => (string) $account['user']['id'],
-            'type' => 'email_verification',
-            'token_hash' => Tokens::hash($token),
-            'expires_at' => gmdate('Y-m-d H:i:s', time() - 60),
-        ]);
-
-        assert_app_error('token_expired', static function () use ($token): void {
-            AuthService::verifyEmail($token);
-        });
-    },
-
     'queues a password reset email without leaking account existence' => static function (): void {
         make_user('reset@example.com');
 

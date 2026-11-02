@@ -7,6 +7,7 @@ declare(strict_types=1);
  * every URL the application answers.
  */
 
+use App\Controllers\AdminConsoleController;
 use App\Controllers\AdminTaskController;
 use App\Controllers\ApiController;
 use App\Controllers\AuthController;
@@ -26,6 +27,7 @@ $team = new TeamController();
 $invite = new InviteController();
 $onboarding = new OnboardingController();
 $adminTasks = new AdminTaskController();
+$adminConsole = new AdminConsoleController();
 $api = new ApiController();
 
 // Public pages.
@@ -39,8 +41,12 @@ $router->get('/forgot-password', [$auth, 'showForgot']);
 $router->post('/forgot-password', [$auth, 'forgot']);
 $router->get('/reset-password', [$auth, 'showReset']);
 $router->post('/reset-password', [$auth, 'reset']);
-$router->get('/verify-email', [$auth, 'verifyEmail']);
-$router->post('/verify-email/resend', [$auth, 'resendVerification']);
+// Email one-time-code verification (sign-up verification and sign-in 2FA).
+// /verify-email is kept as a legacy entry point for links sent before the switch.
+$router->get('/verify-otp', [$auth, 'showVerifyOtp']);
+$router->post('/verify-otp', [$auth, 'verifyOtp']);
+$router->post('/verify-otp/resend', [$auth, 'resendOtp']);
+$router->get('/verify-email', [$auth, 'showVerifyOtp']);
 $router->get('/auth/google', [$auth, 'googleRedirect']);
 $router->get('/auth/google/callback', [$auth, 'googleCallback']);
 $router->get('/lang/{locale}', [$pages, 'switchLocale']);
@@ -63,12 +69,21 @@ $router->get('/onboarding/documents/{id}', [$onboarding, 'viewDocument']);
 $router->get('/onboarding/documents/{id}/download', [$onboarding, 'downloadDocument']);
 $router->post('/onboarding/submit', [$onboarding, 'submit']);
 
-// Staff console: Action Center dashboard and review job queue.
-$router->get('/admin', [$adminTasks, 'dashboard']);
+// Platform console: overview, workspaces, KYC, users, templates, audit.
+$router->get('/admin', [$adminConsole, 'overview']);
+$router->get('/admin/workspaces', [$adminConsole, 'workspaces']);
+$router->get('/admin/kyc', [$adminConsole, 'kyc']);
+$router->get('/admin/users', [$adminConsole, 'users']);
+$router->post('/admin/users/{id}/platform-admin', [$adminConsole, 'togglePlatformAdmin']);
+$router->get('/admin/templates', [$adminConsole, 'templates']);
+$router->get('/admin/audit', [$adminConsole, 'audit']);
+
+// Staff review queue.
 $router->get('/admin/tasks', [$adminTasks, 'tasks']);
 $router->post('/admin/tasks/{id}/assign', [$adminTasks, 'assign']);
 $router->post('/admin/tasks/{id}/unassign', [$adminTasks, 'unassign']);
 $router->post('/admin/tasks/{id}/complete', [$adminTasks, 'complete']);
+$router->post('/admin/security/otp', [$adminTasks, 'toggleOtp']);
 
 // Team management actions.
 $router->post('/team/invite', [$team, 'invite']);

@@ -1,0 +1,121 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use App\AppError;
+use App\Http;
+use App\I18n;
+use App\Services\PlatformConsoleService;
+use App\Services\TaskCenterService;
+use App\View;
+
+/**
+ * Fresh platform console: overview, workspaces, KYC queue, users, templates and
+ * the audit trail. Every page is staff-only; tenant dashboards live elsewhere.
+ */
+final class AdminConsoleController extends Controller
+{
+    public function overview(array $params): never
+    {
+        $user = $this->staff();
+
+        View::render('pages/admin/overview', [
+            'user' => $user,
+            'overview' => PlatformConsoleService::overview((string) $user['id']),
+            'taskBadge' => PlatformConsoleService::taskBadge((string) $user['id']),
+        ], 'layout_admin');
+    }
+
+    public function workspaces(array $params): never
+    {
+        $user = $this->staff();
+
+        View::render('pages/admin/workspaces', [
+            'user' => $user,
+            'workspaces' => PlatformConsoleService::workspaces((string) $user['id'], [
+                'q' => (string) (Http::queryString('q') ?? ''),
+                'kyc' => (string) (Http::queryString('kyc') ?? ''),
+                'page' => (int) (Http::queryString('page') ?? 1),
+            ]),
+            'taskBadge' => PlatformConsoleService::taskBadge((string) $user['id']),
+        ], 'layout_admin');
+    }
+
+    public function kyc(array $params): never
+    {
+        $user = $this->staff();
+
+        View::render('pages/admin/kyc', [
+            'user' => $user,
+            'kyc' => PlatformConsoleService::kycQueue((string) $user['id']),
+            'taskBadge' => PlatformConsoleService::taskBadge((string) $user['id']),
+        ], 'layout_admin');
+    }
+
+    public function users(array $params): never
+    {
+        $user = $this->staff();
+
+        View::render('pages/admin/users', [
+            'user' => $user,
+            'users' => PlatformConsoleService::users((string) $user['id'], [
+                'q' => (string) (Http::queryString('q') ?? ''),
+                'admin' => (string) (Http::queryString('admin') ?? ''),
+                'page' => (int) (Http::queryString('page') ?? 1),
+            ]),
+            'taskBadge' => PlatformConsoleService::taskBadge((string) $user['id']),
+        ], 'layout_admin');
+    }
+
+    public function templates(array $params): never
+    {
+        $user = $this->staff();
+
+        View::render('pages/admin/templates', [
+            'user' => $user,
+            'templates' => PlatformConsoleService::templates((string) $user['id']),
+            'taskBadge' => PlatformConsoleService::taskBadge((string) $user['id']),
+        ], 'layout_admin');
+    }
+
+    public function audit(array $params): never
+    {
+        $user = $this->staff();
+
+        View::render('pages/admin/audit', [
+            'user' => $user,
+            'audit' => PlatformConsoleService::audit((string) $user['id'], [
+                'action' => (string) (Http::queryString('action') ?? ''),
+                'page' => (int) (Http::queryString('page') ?? 1),
+            ]),
+            'taskBadge' => PlatformConsoleService::taskBadge((string) $user['id']),
+        ], 'layout_admin');
+    }
+
+    /** Grant or revoke platform-admin access for an account. */
+    public function togglePlatformAdmin(array $params): never
+    {
+        $user = $this->staff();
+
+        $enabled = (string) (Http::input('enabled') ?? '') === '1';
+
+        try {
+            PlatformConsoleService::setPlatformAdmin((string) $user['id'], (string) $params['id'], $enabled);
+            $this->flash('success', $enabled ? t('flash.platform_admin_granted') : t('flash.platform_admin_revoked'));
+        } catch (AppError $error) {
+            $this->flash('error', I18n::error($error->errorCode));
+        }
+
+        Http::redirect('/admin/users');
+    }
+
+    /** @return array<string, mixed> */
+    private function staff(): array
+    {
+        $user = $this->requireUser();
+        TaskCenterService::assertStaff((string) $user['id']);
+        return $user;
+    }
+}

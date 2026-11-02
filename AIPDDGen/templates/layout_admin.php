@@ -85,12 +85,26 @@ $adminBadge = isset($taskBadge) ? (int) $taskBadge : 0;
 
     <nav class="admin-tabs" aria-label="<?= e(t('admin.console_label')) ?>">
         <a class="admin-tab" href="<?= e(url('/admin')) ?>" <?= $adminPath === '/admin' ? 'aria-current="page"' : '' ?>>
-            <?= e(t('admin.action_center')) ?>
+            <?= e(t('console.nav_overview')) ?>
         </a>
         <a class="admin-tab" href="<?= e(url('/admin/tasks')) ?>" <?= str_starts_with($adminPath, '/admin/tasks') ? 'aria-current="page"' : '' ?>>
-            <?= e(t('admin.job_queue')) ?>
+            <?= e(t('console.nav_job_queue')) ?>
         </a>
-        <span class="admin-tab admin-tab--pending" aria-disabled="true"><?= e(t('admin.template_library_pending')) ?></span>
+        <a class="admin-tab" href="<?= e(url('/admin/workspaces')) ?>" <?= str_starts_with($adminPath, '/admin/workspaces') ? 'aria-current="page"' : '' ?>>
+            <?= e(t('console.nav_workspaces')) ?>
+        </a>
+        <a class="admin-tab" href="<?= e(url('/admin/kyc')) ?>" <?= str_starts_with($adminPath, '/admin/kyc') ? 'aria-current="page"' : '' ?>>
+            <?= e(t('console.nav_kyc')) ?>
+        </a>
+        <a class="admin-tab" href="<?= e(url('/admin/users')) ?>" <?= str_starts_with($adminPath, '/admin/users') ? 'aria-current="page"' : '' ?>>
+            <?= e(t('console.nav_users')) ?>
+        </a>
+        <a class="admin-tab" href="<?= e(url('/admin/templates')) ?>" <?= str_starts_with($adminPath, '/admin/templates') ? 'aria-current="page"' : '' ?>>
+            <?= e(t('console.nav_templates')) ?>
+        </a>
+        <a class="admin-tab" href="<?= e(url('/admin/audit')) ?>" <?= str_starts_with($adminPath, '/admin/audit') ? 'aria-current="page"' : '' ?>>
+            <?= e(t('console.nav_audit')) ?>
+        </a>
         <a class="admin-tab" href="<?= e(url('/dashboard')) ?>"><?= e(t('admin.my_workspace')) ?></a>
     </nav>
 </header>

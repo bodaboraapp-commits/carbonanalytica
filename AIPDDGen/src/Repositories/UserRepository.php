@@ -86,4 +86,14 @@ final class UserRepository
     {
         Db::execute('UPDATE users SET default_team_id = ? WHERE id = ?', [$teamId, $id]);
     }
+
+    /**
+     * Turn the sign-in second factor on or off for one account.
+     * The default is off (migration 0006), so password-only sign-in works out of
+     * the box and two-factor is an explicit opt-in.
+     */
+    public static function setOtpEnabled(string $id, bool $enabled): void
+    {
+        Db::execute('UPDATE users SET otp_enabled = ? WHERE id = ?', [$enabled ? 1 : 0, $id]);
+    }
 }

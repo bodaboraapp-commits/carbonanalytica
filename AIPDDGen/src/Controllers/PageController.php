@@ -12,6 +12,7 @@ use App\Repositories\UserRepository;
 use App\Services\OnboardingService;
 use App\Services\ProjectService;
 use App\Services\TeamService;
+use App\Services\WorkspaceDashboardService;
 use App\Tenancy;
 use App\View;
 
@@ -34,6 +35,7 @@ final class PageController extends Controller
         $user = $this->requireUser();
         $team = $this->currentTeam($user);
         $projects = ProjectService::listForTeam((string) $user['id'], (string) $team['id']);
+        $workspace = WorkspaceDashboardService::forTeam((string) $user['id'], $team);
 
         View::render('pages/dashboard', [
             'user' => $user,
@@ -41,7 +43,8 @@ final class PageController extends Controller
             'teams' => Tenancy::teamsForUser((string) $user['id']),
             'projects' => $projects,
             'organization' => OnboardingService::state((string) $user['id'], (string) $team['id']),
-            'canEdit' => $this->hasRole((string) $team['membership_role'], 'editor'),
+            'workspace' => $workspace,
+            'canEdit' => (bool) $workspace['can_edit'],
             'errors' => \App\Session::takeErrors(),
         ]);
     }

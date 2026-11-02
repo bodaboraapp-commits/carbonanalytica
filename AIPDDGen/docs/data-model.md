@@ -59,11 +59,12 @@ erDiagram
 
 | Table | Purpose | Key columns and constraints |
 | --- | --- | --- |
-| `users` | One person. Local password and/or Google identity. | `email` + generated `email_lower` with **unique** index (case-insensitive uniqueness); `password_hash` nullable (Google-only accounts); `locale` (`en`/`fr`); `email_verified_at`; `default_team_id` (no FK — teams reference users, a hard FK would be circular); `session_version` for revoking every session; `deletion_requested_at` + `deleted_at` for the privacy window. |
+| `users` | One person. Local password and/or Google identity. | `email` + generated `email_lower` with **unique** index (case-insensitive uniqueness); `password_hash` nullable (Google-only accounts); `locale` (`en`/`fr`); `email_verified_at`; `otp_enabled` (optional sign-in second factor, default 0); `default_team_id` (no FK — teams reference users, a hard FK would be circular); `session_version` for revoking every session; `deletion_requested_at` + `deleted_at` for the privacy window. |
 | `accounts` | Linked OAuth identity (Google at launch). | **unique (`provider`, `provider_account_id`)**; FK `user_id` cascade. |
 | `verification_tokens` | Single-use emailed tokens: verify email, reset password, change email. | **unique** `token_hash` (SHA-256 only); `type`; `expires_at`; `used_at`; `requested_ip`. Never stores a plaintext token. |
-| `email_outbox` | Every message the app wants to send. | `kind`, `body_text`, `sent_at`, `error`. The `log` transport writes here and to `storage/logs/mail.log`. |
-| `rate_limit_counters` | Fixed-window counters for sign-in, reset and resend. | `counter_key` primary key, `window_start`, `count`. |
+| `email_outbox` | Every message the app wants to send. | `kind`, `body_text`, `sent_at`, `error`, `provider_message_id` (Resend id). The `log` transport writes here and to `storage/logs/mail.log`; with `resend` the body is mirrored to the log outside production. |
+| `rate_limit_counters` | Fixed-window counters for sign-in, reset, resend and OTP attempts. | `counter_key` primary key, `window_start`, `count`. |
+| `otp_codes` | Emailed one-time codes for sign-up verification and the sign-in second factor. | `purpose` (`signup`/`signin`); `code_hash` (**SHA-256 only**); `attempts`; `expires_at`; `consumed_at`; `requested_ip`; **key** (`user_id`,`purpose`,`consumed_at`). One active code per user and purpose — a resend consumes the previous row. |
 
 No sessions table: PHP's native session store plus `users.session_version` gives signed-in state and instant revocation without another table (see ADR-003).
 
@@ -126,6 +127,7 @@ Wizard progress is **derived** from these rows ([organization onboarding](organi
 5. **No orphan tenant data** — every tenant-owned row cascades from `teams`; audit rows survive with `SET NULL`.
 6. **Numbers are typed, not strings** — `value_numeric`/`value_date` mean generators can copy values verbatim; free-form values go to `value_text`/`value_json`.
 7. **No submission without the required documents** — enforced in `OnboardingService::submit()` (a cross-row rule MySQL cannot express as a constraint): all required document kinds must exist and steps 1–2 must be complete before `status` leaves `draft`.
+8. **One active sign-in code per purpose** — enforced by `OtpService` (`UPDATE … consumed_at` on issue); only the hash is stored, so a database dump cannot be replayed as a valid code.
 
 ### Role matrix
 
@@ -174,7 +176,7 @@ Wizard progress is **derived** from these rows ([organization onboarding](organi
 | Area | State |
 | --- | --- |
 | Schema + migration | Complete: `migrations/0001_init.sql`, applied by `bin/setup.php` to `pdd_generator` and `pdd_generator_test`. |
-| Auth (F1) | Complete: email/password, Google OAuth, verification, password reset, rate limiting, audit. |
+| Auth (F1) | Complete: email/password with an emailed one-time code as the sign-in second factor, Google OAuth, password reset, rate limiting, audit. |
 | Teams and roles (F1, F10 partial) | Complete: personal workspace, invitations, role rules, member management, audit. |
 | Projects (F2 groundwork) | Create/list/detail/soft delete with tenant isolation. The wizard is step 3. |
 | Organization onboarding (product-owner request) | Complete: 4-step wizard, document uploads, declaration template, submit/lock and audit. Admin review console is a later step. |

@@ -1,4 +1,4 @@
-# End-to-end smoke test for the staff Action Center (port 8000).
+# End-to-end smoke test for the platform console and review queue (port 8000).
 # Run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e-admin-smoke.ps1
 $ErrorActionPreference = 'Stop'
 $base = 'http://127.0.0.1:8000'
@@ -70,17 +70,33 @@ $staffLogin = Invoke-Request '/login' -Method POST -Session $staff -NoRedirect -
 }
 Check 'staff sign in redirects' ($staffLogin.Status -eq 303) "status=$($staffLogin.Status)"
 
-Write-Output '--- Action Center dashboard ---'
+Write-Output '--- Platform console overview ---'
 $dashboard = Invoke-Request '/admin' -Session $staff
-Check 'Action Center renders' ($dashboard.Status -eq 200 -and $dashboard.Content -match 'Action Center')
-Check 'assigned-to-me tile present' ($dashboard.Content -match 'Assigned to me')
-Check 'SLA breached tile present' ($dashboard.Content -match 'SLA breached')
-Check 'work type breakdown present' ($dashboard.Content -match 'By work type')
-Check 'pipeline status cards present' ($dashboard.Content -match 'PDD pipeline status')
+Check 'platform console renders' ($dashboard.Status -eq 200 -and $dashboard.Content -match 'Platform console')
 Check 'KPI tiles present' ($dashboard.Content -match 'Total workspaces')
-Check 'SLA alert bar present' ($dashboard.Content -match 'breached SLA')
-Check 'staff badge visible' ($dashboard.Content -match 'Staff console')
+Check 'quick links present' ($dashboard.Content -match 'Jump to')
+Check 'KYC preview present' ($dashboard.Content -match 'KYC waiting for review')
+Check 'recent activity present' ($dashboard.Content -match 'Recent activity')
+Check 'security card present' ($dashboard.Content -match 'Two-factor sign-in')
 
+$consolePages = @{
+    '/admin/workspaces' = 'Workspaces'
+    '/admin/kyc'        = 'KYC queue'
+    '/admin/users'      = 'Users'
+    '/admin/templates'  = 'Template library'
+    '/admin/audit'      = 'Audit'
+}
+foreach ($page in $consolePages.GetEnumerator()) {
+    $res = Invoke-Request $page.Key -Session $staff
+    Check "console page $($page.Key)" ($res.Status -eq 200 -and $res.Content -match [regex]::Escape($page.Value)) "status=$($res.Status)"
+}
+
+$search = Invoke-Request '/admin/workspaces?q=demo' -Session $staff
+Check 'workspace search responds' ($search.Status -eq 200)
+$adminsOnly = Invoke-Request '/admin/users?admin=1' -Session $staff
+Check 'admin filter responds' ($adminsOnly.Status -eq 200 -and $adminsOnly.Content -match 'Platform admin')
+$auditFiltered = Invoke-Request '/admin/audit?action=auth.signin' -Session $staff
+Check 'audit filter responds' ($auditFiltered.Status -eq 200)
 Write-Output '--- Job queue ---'
 $queue = Invoke-Request '/admin/tasks' -Session $staff
 Check 'job queue renders' ($queue.Status -eq 200 -and $queue.Content -match 'Job queue')

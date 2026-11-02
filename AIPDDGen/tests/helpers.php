@@ -147,6 +147,34 @@ function token_from_email(string $body, string $path): ?string
     return null;
 }
 
+/** The newest six-digit sign-in/sign-up code emailed to an address. */
+function latest_otp_code(string $email): ?string
+{
+    $emailRow = latest_email($email, 'otp');
+    if ($emailRow === null) {
+        return null;
+    }
+    if (preg_match('/\b(\d{6})\b/', (string) $emailRow['body_text'], $matches)) {
+        return $matches[1];
+    }
+    return null;
+}
+
+/** Start the OTP step the way the controller does, then return the emailed code. */
+function request_otp(string $email, string $purpose = 'signin'): string
+{
+    $user = UserRepository::findByEmail($email);
+    if ($user === null) {
+        throw new RuntimeException('No user for ' . $email);
+    }
+    AuthService::startOtpChallenge($user, $purpose);
+    $code = latest_otp_code($email);
+    if ($code === null) {
+        throw new RuntimeException('No OTP email for ' . $email);
+    }
+    return $code;
+}
+
 /** Extract the invitation token from an emailed link such as /invite/abc. */
 function invitation_token_from_email(string $body): ?string
 {

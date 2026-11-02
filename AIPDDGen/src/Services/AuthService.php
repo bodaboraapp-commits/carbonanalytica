@@ -10,21 +10,26 @@ use App\Config;
 use App\Db;
 use App\I18n;
 use App\Mailer;
+use App\OtpService;
 use App\Password;
 use App\RateLimit;
 use App\Repositories\UserRepository;
 use App\Tokens;
 
 /**
- * Authentication services: sign-up, sign-in, email verification, password reset
- * and Google account linking.
+ * Authentication services: sign-up, sign-in (password + emailed one-time code),
+ * password reset and Google account linking.
  *
  * Rules:
  *  - passwords are hashed with PHP's password API and never logged;
- *  - tokens are random and stored hashed;
- *  - failed sign-ins are audited and rate limited;
- *  - a password reset bumps `session_version`, killing every existing session;
- *  - unknown accounts and wrong passwords produce the same error (no enumeration).
+ *  - sign-up and sign-in send a six-digit code; a password alone never
+ *    establishes a session;
+ *  - codes are stored hashed, are single use, expire, and die after a handful
+ *    of wrong guesses (see OtpService);
+ *  - reset and invitation tokens are random and stored hashed;
+ *  - failed sign-ins are audited and rate limited, and an unknown account and
+ *    a wrong password produce the same error (no enumeration);
+ *  - a password reset bumps `session_version`, killing every existing session.
  */
 final class AuthService
 {
@@ -42,9 +47,8 @@ final class AuthService
         }
 
         $passwordHash = Password::hash($password);
-        $verificationToken = Tokens::generate();
 
-        $created = Db::transaction(static function () use ($name, $email, $passwordHash, $locale, $verificationToken): array {
+        $created = Db::transaction(static function () use ($name, $email, $passwordHash, $locale): array {
             $user = UserRepository::create([
                 'email' => $email,
                 'password_hash' => $passwordHash,
@@ -54,16 +58,6 @@ final class AuthService
 
             $team = TeamService::createPersonalTeam((string) $user['id'], $name, $locale);
             UserRepository::setDefaultTeam((string) $user['id'], (string) $team['id']);
-
-            $ttl = (int) Config::get('auth.email_verification_ttl');
-            Db::insert('verification_tokens', [
-                'id' => \App\Uuid::v4(),
-                'user_id' => (string) $user['id'],
-                'type' => 'email_verification',
-                'token_hash' => Tokens::hash($verificationToken),
-                'expires_at' => gmdate('Y-m-d H:i:s', time() + $ttl),
-                'requested_ip' => \App\Http::ip(),
-            ]);
 
             Audit::record([
                 'team_id' => (string) $team['id'],
@@ -77,14 +71,39 @@ final class AuthService
             return ['user' => $user, 'team' => $team];
         });
 
-        self::sendVerificationEmail($created['user'], $verificationToken);
-
         // Re-read so callers see the default workspace and verification state.
         $created['user'] = UserRepository::findById((string) $created['user']['id']) ?? $created['user'];
 
         return $created;
     }
 
+    /**
+     * Send the one-time code that completes a sign-up or a sign-in.
+     *
+     * @param array<string, mixed> $user
+     * @return array{purpose: string, email: string, expires_at: string, delivered: bool, delivery_error: string|null}
+     */
+    public static function startOtpChallenge(array $user, string $purpose): array
+    {
+        $challenge = OtpService::issue($user, $purpose);
+
+        Audit::record([
+            'actor_user_id' => (string) $user['id'],
+            'action' => 'auth.otp.sent',
+            'target_type' => 'user',
+            'target_id' => (string) $user['id'],
+            'metadata' => ['purpose' => $purpose],
+        ]);
+
+        return $challenge;
+    }
+
+    /**
+     * First factor: check the password. The caller must still complete the
+     * one-time code before a session is created.
+     *
+     * @return array<string, mixed> the user row
+     */
     public static function signIn(string $email, string $password): array
     {
         $email = mb_strtolower(trim($email));
@@ -135,16 +154,171 @@ final class AuthService
             UserRepository::update((string) $user['id'], ['password_hash' => Password::hash($password)]);
         }
 
-        UserRepository::touchLastSeen((string) $user['id']);
-
         Audit::record([
             'actor_user_id' => (string) $user['id'],
-            'action' => 'auth.signin',
+            'action' => 'auth.signin.password_verified',
             'target_type' => 'user',
             'target_id' => (string) $user['id'],
         ]);
 
         return $user;
+    }
+
+    /**
+     * Complete a password-only sign-in when the account has the email second
+     * factor switched off (the default; see migration 0006).
+     *
+     * @param array<string, mixed> $user
+     * @return array<string, mixed> the refreshed user row
+     */
+    public static function completePasswordSignIn(array $user): array
+    {
+        $userId = (string) $user['id'];
+
+        Db::transaction(static function () use ($userId): void {
+            UserRepository::touchLastSeen($userId);
+
+            Audit::record([
+                'actor_user_id' => $userId,
+                'action' => 'auth.signin',
+                'target_type' => 'user',
+                'target_id' => $userId,
+                'metadata' => ['method' => 'password'],
+            ]);
+        });
+
+        return UserRepository::findById($userId) ?? $user;
+    }
+
+    /**
+     * Enable or disable the email second factor for one account.
+     *
+     * Called by the staff console "Two-factor sign-in" button. The preference is
+     * per account: turning it on for an admin does not affect tenant users.
+     *
+     * @return array<string, mixed> the refreshed user row
+     */
+    public static function setOtpEnabled(string $userId, bool $enabled): array
+    {
+        $user = UserRepository::findById($userId);
+        if ($user === null) {
+            throw AppError::notFound('That account');
+        }
+
+        Db::transaction(static function () use ($userId, $enabled): void {
+            UserRepository::setOtpEnabled($userId, $enabled);
+
+            Audit::record([
+                'actor_user_id' => $userId,
+                'action' => 'auth.otp.preference_changed',
+                'target_type' => 'user',
+                'target_id' => $userId,
+                'metadata' => ['enabled' => $enabled],
+            ]);
+        });
+
+        return UserRepository::findById($userId) ?? $user;
+    }
+
+    /**
+     * Second factor: check the emailed code and establish the signed-in state.
+     *
+     * @return array{user: array<string, mixed>, newly_verified: bool}
+     */
+    public static function verifyOtp(string $userId, string $purpose, string $code): array
+    {
+        $limit = RateLimit::consume(
+            'auth:otp:verify:' . $userId,
+            (int) Config::get('auth.otp_verify_limit.max'),
+            (int) Config::get('auth.otp_verify_limit.window'),
+        );
+        if (!$limit['allowed']) {
+            throw AppError::rateLimited($limit['retry_after']);
+        }
+
+        $user = UserRepository::findById($userId);
+        if ($user === null) {
+            throw AppError::unauthorized();
+        }
+
+        OtpService::verify($userId, $purpose, $code);
+        RateLimit::reset('auth:otp:verify:' . $userId);
+
+        $newlyVerified = false;
+
+        Db::transaction(static function () use ($userId, $purpose, $user, &$newlyVerified): void {
+            // Proving control of the address with the code also verifies the email,
+            // whatever the original purpose (sign-up or sign-in).
+            if ($user['email_verified_at'] === null) {
+                UserRepository::markEmailVerified($userId);
+                $newlyVerified = true;
+            }
+
+            UserRepository::touchLastSeen($userId);
+
+            Audit::record([
+                'actor_user_id' => $userId,
+                'action' => 'auth.otp.verified',
+                'target_type' => 'user',
+                'target_id' => $userId,
+                'metadata' => ['purpose' => $purpose],
+            ]);
+
+            if ($newlyVerified) {
+                Audit::record([
+                    'actor_user_id' => $userId,
+                    'action' => 'auth.email_verified',
+                    'target_type' => 'user',
+                    'target_id' => $userId,
+                ]);
+            }
+
+            Audit::record([
+                'actor_user_id' => $userId,
+                'action' => 'auth.signin',
+                'target_type' => 'user',
+                'target_id' => $userId,
+                'metadata' => ['method' => 'password+otp', 'purpose' => $purpose],
+            ]);
+        });
+
+        $fresh = UserRepository::findById($userId) ?? $user;
+
+        return ['user' => $fresh, 'newly_verified' => $newlyVerified];
+    }
+
+    /**
+     * Re-send the pending code (rate limited per user and purpose).
+     *
+     * @return array{purpose: string, email: string, expires_at: string, delivered: bool, delivery_error: string|null}
+     */
+    public static function resendOtp(string $userId, string $purpose): array
+    {
+        $user = UserRepository::findById($userId);
+        if ($user === null) {
+            throw AppError::unauthorized();
+        }
+
+        $limit = RateLimit::consume(
+            'auth:otp:resend:' . $userId . ':' . $purpose,
+            (int) Config::get('auth.otp_resend_limit.max'),
+            (int) Config::get('auth.otp_resend_limit.window'),
+        );
+        if (!$limit['allowed']) {
+            throw AppError::rateLimited($limit['retry_after']);
+        }
+
+        $challenge = OtpService::issue($user, $purpose);
+
+        Audit::record([
+            'actor_user_id' => $userId,
+            'action' => 'auth.otp.resent',
+            'target_type' => 'user',
+            'target_id' => $userId,
+            'metadata' => ['purpose' => $purpose],
+        ]);
+
+        return $challenge;
     }
 
     public static function signOut(): void
@@ -158,105 +332,6 @@ final class AuthService
                 'target_id' => (string) $user['id'],
             ]);
         }
-    }
-
-    /**
-     * Consume an email-verification token (single use, 48-hour expiry).
-     *
-     * @return array{user: array<string, mixed>, already_verified: bool}
-     */
-    public static function verifyEmail(string $token): array
-    {
-        $record = Db::selectOne(
-            'SELECT * FROM verification_tokens WHERE token_hash = ? AND type = ? LIMIT 1',
-            [Tokens::hash($token), 'email_verification'],
-        );
-
-        if ($record === null) {
-            throw AppError::invalidToken();
-        }
-        if ($record['used_at'] !== null) {
-            throw AppError::invalidToken();
-        }
-        if (strtotime((string) $record['expires_at']) <= time()) {
-            throw AppError::tokenExpired();
-        }
-
-        $user = UserRepository::findById((string) $record['user_id']);
-        if ($user === null) {
-            throw AppError::invalidToken();
-        }
-
-        $alreadyVerified = $user['email_verified_at'] !== null;
-
-        Db::transaction(static function () use ($record, $user, $alreadyVerified): void {
-            Db::execute('UPDATE verification_tokens SET used_at = NOW(3) WHERE id = ?', [(string) $record['id']]);
-            if (!$alreadyVerified) {
-                UserRepository::markEmailVerified((string) $user['id']);
-            }
-            Audit::record([
-                'actor_user_id' => (string) $user['id'],
-                'action' => 'auth.email_verified',
-                'target_type' => 'user',
-                'target_id' => (string) $user['id'],
-            ]);
-        });
-
-        $fresh = UserRepository::findById((string) $user['id']) ?? $user;
-
-        return ['user' => $fresh, 'already_verified' => $alreadyVerified];
-    }
-
-    /** Re-send a verification email, invalidating older unused links. */
-    public static function resendVerification(string $userId): bool
-    {
-        $user = UserRepository::findById($userId);
-        if ($user === null) {
-            throw AppError::notFound('That account');
-        }
-        if ($user['email_verified_at'] !== null) {
-            return false; // already verified
-        }
-
-        $limit = RateLimit::consume(
-            'auth:verify:' . $userId,
-            (int) Config::get('auth.resend_verification_limit.max'),
-            (int) Config::get('auth.resend_verification_limit.window'),
-        );
-        if (!$limit['allowed']) {
-            throw AppError::rateLimited($limit['retry_after']);
-        }
-
-        $token = Tokens::generate();
-
-        Db::transaction(static function () use ($user, $userId, $token): void {
-            Db::execute(
-                "UPDATE verification_tokens SET used_at = NOW(3)
-                 WHERE user_id = ? AND type = 'email_verification' AND used_at IS NULL",
-                [$userId],
-            );
-
-            $ttl = (int) Config::get('auth.email_verification_ttl');
-            Db::insert('verification_tokens', [
-                'id' => \App\Uuid::v4(),
-                'user_id' => $userId,
-                'type' => 'email_verification',
-                'token_hash' => Tokens::hash($token),
-                'expires_at' => gmdate('Y-m-d H:i:s', time() + $ttl),
-                'requested_ip' => \App\Http::ip(),
-            ]);
-
-            Audit::record([
-                'actor_user_id' => $userId,
-                'action' => 'auth.verification_resent',
-                'target_type' => 'user',
-                'target_id' => $userId,
-            ]);
-        });
-
-        self::sendVerificationEmail($user, $token);
-
-        return true;
     }
 
     /**
@@ -477,19 +552,5 @@ final class AuthService
         });
 
         return $created;
-    }
-
-    private static function sendVerificationEmail(array $user, string $token): void
-    {
-        $locale = (string) $user['locale'];
-        Mailer::send(
-            (string) $user['email'],
-            I18n::forLocale($locale, 'email.verify_subject'),
-            I18n::forLocale($locale, 'email.verify_body', [
-                'name' => (string) $user['name'],
-                'url' => absolute_url('/verify-email?token=' . rawurlencode($token)),
-            ]),
-            'email_verification',
-        );
     }
 }

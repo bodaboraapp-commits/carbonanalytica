@@ -10,8 +10,9 @@ return [
     'creates every expected table' => static function (): void {
         // `template_fields` arrives with migration 0002 (step 2, admin template
         // library); `organization_*` with 0003 (organization onboarding);
-        // `review_tasks` with 0004 (staff Action Center). The runner applies every
-        // file in migrations/ to the test DB, so this list tracks the whole set.
+        // `review_tasks` with 0004 (staff Action Center); `otp_codes` with 0005
+        // (email one-time-code sign-in). The runner applies every file in
+        // migrations/ to the test DB, so this list tracks the whole set.
         $rows = Db::select(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()",
         );
@@ -21,7 +22,7 @@ return [
             'users', 'accounts', 'verification_tokens', 'email_outbox', 'rate_limit_counters',
             'teams', 'team_members', 'team_invitations', 'methodologies',
             'templates', 'template_versions', 'template_sections', 'template_fields',
-            'organization_profiles', 'organization_documents', 'review_tasks',
+            'organization_profiles', 'organization_documents', 'review_tasks', 'otp_codes',
             'projects', 'inputs', 'facts', 'fact_sheet_versions',
             'drafts', 'draft_sections', 'draft_versions', 'comments',
             'gap_reports', 'gap_items', 'audit_logs', 'schema_migrations',

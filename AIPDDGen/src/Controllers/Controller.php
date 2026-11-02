@@ -20,6 +20,12 @@ abstract class Controller
     /** @return array<string, mixed> */
     protected function requireUser(): array
     {
+        // A correct password (or a fresh sign-up) is not a session yet: the user
+        // must finish the emailed one-time code first.
+        if (Auth::user() === null && Auth::pending() !== null) {
+            Http::redirect('/verify-otp');
+        }
+
         $user = Auth::user();
         if ($user === null) {
             Http::redirect('/login?next=' . rawurlencode(Http::path()));

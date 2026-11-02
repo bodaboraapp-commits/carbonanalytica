@@ -41,12 +41,31 @@ return [
         'reset_ip_limit' => ['max' => 20, 'window' => 3600],
         'reset_email_limit' => ['max' => 5, 'window' => 3600],
         'resend_verification_limit' => ['max' => 5, 'window' => 3600],
+        // Email one-time codes: sign-up verification and the sign-in second factor.
+        'otp_ttl' => 10 * 60,
+        'otp_pending_ttl' => 15 * 60,
+        'otp_max_attempts' => 5,
+        'otp_verify_limit' => ['max' => 15, 'window' => 600],
+        'otp_resend_limit' => ['max' => 5, 'window' => 600],
     ],
 
     'mail' => [
         // `log` writes to the email_outbox table and storage/logs/mail.log.
         'transport' => getenv('EMAIL_TRANSPORT') ?: 'log',
         'from' => getenv('EMAIL_FROM') ?: 'AI PDD Generator <no-reply@pddgen.local>',
+        // Fixture domains that must never reach a real provider (demo account,
+        // end-to-end tests). Their bodies still land in mail.log in development.
+        'test_recipient_domains' => ['pddgen.local', 'example.com', 'example.org'],
+        // With a real provider configured, mirror message bodies to mail.log
+        // outside production so one-time codes stay reachable on the dev machine.
+        'development_mail_log' => true,
+    ],
+
+    'resend' => [
+        'api_key' => getenv('RESEND_API_KEY') ?: '',
+        'from' => getenv('RESEND_FROM') ?: (getenv('EMAIL_FROM') ?: 'AI PDD Generator <noreply@carbonanalytica.com>'),
+        'endpoint' => getenv('RESEND_ENDPOINT') ?: 'https://api.resend.com/emails',
+        'timeout' => (int) (getenv('RESEND_TIMEOUT') ?: 10),
     ],
 
     'google' => [

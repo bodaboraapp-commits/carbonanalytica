@@ -17,7 +17,7 @@ This repository implements **step 1: data model and authentication** (see [docs/
 | Pages | Server-rendered PHP templates | Forms work without JavaScript. |
 | API | Small JSON endpoints (`/api/*`) | The same services the pages use. |
 | Auth | Native PHP sessions + `session_version` | Instant revocation; CSRF tokens; Argon2id/bcrypt hashing. |
-| Email | Outbox table + `log` transport | Verification, reset and invitation links appear in `storage/logs/mail.log`. |
+| Email | Resend API + `email_outbox` | Sign-up/sign-in one-time codes; reset and invitation links. Every message is recorded in `email_outbox` and mirrored to `storage/logs/mail.log` outside production. |
 | Tests | Built-in runner (`php bin/test.php`) + PowerShell HTTP smoke test | No PHPUnit needed. |
 
 The PRD's original Node/PostgreSQL stack was replaced at the product owner's request with the lightest option that runs on the existing XAMPP server. Decisions and consequences: [docs/decisions.md](docs/decisions.md).
@@ -66,6 +66,8 @@ The seeded **staff account** opens the Action Center and review queue at `/admin
 
 - **Email:** `admin@pddgen.local`
 - **Password:** `AdminPassw0rd!123`
+
+Sign-up always confirms the address with a six-digit emailed code (`/verify-otp`). Sign-in is password-only by default; the optional second factor is per account and can be switched on in the staff Action Center (`/admin` → Sign-in security), after which that account's next sign-in asks for an emailed code too. With `EMAIL_TRANSPORT=resend` those emails go through Resend; for the seeded fixture addresses nothing is sent, and in development every message body is written to `storage/logs/mail.log`, so open that file for the latest code. Codes are single use, expire in 10 minutes, and allow five attempts.
 
 ### Apache alternative
 
@@ -138,7 +140,9 @@ public/index.php
 | Tenant isolation | Single access gate (`Tenancy`), every repository query filters on `team_id`, cross-tenant = 404. |
 | Account enumeration | Identical error for unknown email and wrong password; reset endpoint always reports success. |
 | Brute force | Fixed-window rate limits in MySQL (per IP and per account). |
-| Token leakage | Verification/reset/invitation tokens are random and stored only as SHA-256 hashes. |
+| Sign-in second factor | Optional per account (`users.otp_enabled`, off by default, staff-console toggle). When on, a correct password starts a six-digit email code and no session exists until it verifies (`otp_codes`, 10-minute expiry, 5 attempts, resend limited). Sign-up always verifies the address with a code. |
+| One-time code storage | Only the SHA-256 hash is stored; a code is single use, a resend invalidation kills the previous one, and comparison uses `hash_equals`. |
+| Token leakage | Password-reset and invitation tokens are random and stored only as SHA-256 hashes; one-time codes likewise. |
 | Injection | PDO prepared statements everywhere; no dynamic SQL with user input. |
 | XSS | All template output escaped through `e()`; CSP restricts scripts and styles to `self`. |
 | Clickjacking / sniffing | `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, restrictive permissions policy. |
@@ -172,7 +176,8 @@ Citations and "no unsupported numbers" become testable when the drafting pipelin
 | Step | Scope | Status |
 | --- | --- | --- |
 | 1 | Data model and auth | **Done** (approved) |
-| 1b | Staff console: Action Center + review queue (product-owner request) | **Done** |
+| 1b | Review job queue (tasks, SLAs, assignment) | **Done** |
+| 1c | Dashboards split: workspace Action Center + fresh platform console | **Done** |
 | 2 | Admin template library | Next |
 | 3 | Project wizard | Planned |
 | 4 | Input ingestion (parse, chunk, retrieve) | Planned |
@@ -201,6 +206,7 @@ Out of scope for the MVP (per PRD): other registries, public template marketplac
 - XAMPP's PHP prints `Module "openssl" is already loaded` on startup. It is a duplicate `extension=openssl` line in `C:\xampp\php\php.ini`, harmless, and outside the project.
 - MariaDB here listens on **3307** (set in `C:\xampp\mysql\bin\my.ini`); the app reads `DB_PORT`.
 - Runtime files live under `storage/`; `storage/sessions` holds PHP session files so they stay inside the project.
+- `.env.local` configures Resend (`EMAIL_TRANSPORT=resend`, `RESEND_API_KEY`, `RESEND_FROM`). The sending domain must be verified in the Resend account; a send-only API key is enough. Fixture domains (`pddgen.local`, `example.com`, `example.org`) never reach the provider, and outside production the message body is mirrored to `storage/logs/mail.log`.
 
 ---
 
@@ -211,5 +217,7 @@ Out of scope for the MVP (per PRD): other registries, public template marketplac
 - [Decisions](docs/decisions.md) — architecture decision records.
 - [Step 1 summary](docs/step-01.md) — what shipped, PRD IDs, verification, limitations.
 - [Organization onboarding](docs/organization-onboarding.md) — the 4-step verification wizard for the organization behind a workspace.
-- [Task center](docs/task-center.md) — staff Action Center, review queue, SLA rules and dashboard metrics.
+- [Email OTP and Resend](docs/otp-email-verification.md) — one-time codes for sign-up and the sign-in second factor.
+- [Dashboards](docs/dashboards.md) — workspace Action Center (`/dashboard`) and the platform console (`/admin`).
+- [Task center](docs/task-center.md) — review queue, SLA rules and the review-task model.
 - [Open questions](docs/open-questions.md) — what the product owner needs to answer next.

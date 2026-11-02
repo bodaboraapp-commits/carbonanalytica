@@ -62,11 +62,46 @@ final class Auth
     public static function login(array $user): void
     {
         Session::regenerate();
+        self::clearPending();
         Session::set('user_id', (string) $user['id']);
         Session::set('session_version', (int) $user['session_version']);
         Session::set('locale', (string) $user['locale']);
         self::$loaded = false;
         self::$cachedUser = null;
+    }
+
+    /**
+     * The half-authenticated state between a correct password (or a new account)
+     * and the emailed one-time code. It is deliberately not a session: no user id
+     * is stored, so every signed-in route stays closed until the code is checked.
+     *
+     * @param array<string, mixed> $pending
+     */
+    public static function setPending(array $pending): void
+    {
+        Session::set('_pending_auth', $pending + ['issued_at' => time()]);
+    }
+
+    /** @return array<string, mixed>|null */
+    public static function pending(): ?array
+    {
+        $pending = Session::get('_pending_auth');
+        if (!is_array($pending) || !isset($pending['user_id'], $pending['purpose'])) {
+            return null;
+        }
+
+        $expiresAt = (int) ($pending['expires_at'] ?? 0);
+        if ($expiresAt > 0 && $expiresAt <= time()) {
+            self::clearPending();
+            return null;
+        }
+
+        return $pending;
+    }
+
+    public static function clearPending(): void
+    {
+        Session::forget('_pending_auth');
     }
 
     public static function logout(): void

@@ -90,7 +90,7 @@ powershell -File tools/e2e-smoke.ps1                # HTTP smoke test (server mu
 
 - Methodologies are a provisional shortlist (`is_provisional = 1`) pending the product-owner answer.
 - The Gold Standard template structure is seeded as **draft** and has no uploaded source document yet; step 2 adds the admin console, file storage and publishing workflow.
-- Email transport is `log` (writes `storage/logs/mail.log` and the outbox). Production needs SMTP/SES.
+- Email transport was `log` at step 1 (writes `storage/logs/mail.log` and the outbox). It is now Resend with emailed one-time codes for sign-up and sign-in — see [otp-email-verification.md](otp-email-verification.md) and ADR-010.
 - Google sign-in is implemented but untested against a live Google client (no credentials in this environment); the code path is unit-testable and fails gracefully when unconfigured.
 - The rich-text editor is not built yet; `draft_sections.content_json` is ready for the step-8 choice (ADR-007).
 - No background worker yet; the AI pipeline in later steps will use `bin/worker.php` (documented in step 4).

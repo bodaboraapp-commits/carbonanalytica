@@ -1,10 +1,10 @@
-# Staff console: Action Center and job queue
+# Review task queue and Action Center metrics
 
-Requested by the product owner: an **operational console** like the reference dashboard — attention tiles, SLA alerting, work-type breakdown, pipeline status and platform KPIs — on top of the PDD product. It is staff-only and intentionally separate from the customer app.
+The Action Center **layout** now powers the tenant-facing workspace dashboard (`/dashboard`); the staff **platform console** lives at `/admin`. See [dashboards.md](dashboards.md) for the split. This document covers the review-task model, the SLA rules and the job queue that staff use at `/admin/tasks`.
 
-**URLs:** `/admin` (Action Center) and `/admin/tasks` (job queue).
-**Access:** `users.is_platform_admin = 1`. Tenant accounts get **404**, so the console is not discoverable from a customer session.
-**Schema:** migration [`0004_review_tasks.sql`](../migrations/0004_review_tasks.sql) adds `review_tasks`.
+**URLs:** `/dashboard` (workspace Action Center) and `/admin/tasks` (staff job queue).
+**Access:** workspace dashboard = any active workspace member (tenant-scoped); job queue = platform staff only (`users.is_platform_admin = 1`), tenant accounts get **404**.
+**Schema:** migration [`0004_review_tasks.sql`](../migrations/0004_review_tasks.sql) adds `review_tasks`; the dashboard numbers come from `WorkspaceDashboardService` (tenant) and `PlatformConsoleService` (staff).
 
 ---
 

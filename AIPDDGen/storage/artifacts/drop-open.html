@@ -1,0 +1,2285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#087A43">
+<title>Carbon Analytica | Climate Data, Carbon MRV &amp; Field Intelligence</title>
+<meta name="description" content="Carbon Analytica is a Nairobi-based climate intelligence partner working across carbon MRV, field measurement and testing, climate data systems and clean-cooking technology distribution in Africa.">
+<meta name="color-scheme" content="light">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23087A43'/%3E%3Cpath d='M32 10 54 32 32 54 10 32Z' fill='%23FFFFFF'/%3E%3C/svg%3E">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Carbon Analytica">
+<meta property="og:title" content="Carbon Analytica | Climate Data, Carbon MRV &amp; Field Intelligence">
+<meta property="og:description" content="Field evidence turned into carbon-ready data: carbon MRV, field testing, climate data systems and technology distribution across Africa.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Carbon Analytica | Climate Data, Carbon MRV &amp; Field Intelligence">
+<meta name="twitter:description" content="Field evidence turned into carbon-ready data: carbon MRV, field testing, climate data systems and technology distribution across Africa.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0E1F17;
+    --bg:#FFFFFF;
+    --bg-2:#F2F8F4;
+    --line:#DCE6DE;
+    --green:#159A56;
+    --green-dk:#0D7042;
+    --blue:#087A43;
+    --lime:#8FC93A;
+    --muted:#5B6B60;
+    --white:#FFFFFF;
+    --maxw:1080px;
+  }
+  /* Single light theme. The final palette further down hard-codes light colours, so letting the
+     OS dark mode repaint these variables turned table and timeline text near-invisible. */
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:'IBM Plex Sans', system-ui, sans-serif;
+    -webkit-font-smoothing:antialiased; line-height:1.6;
+  }
+  h1,h2,h3{font-family:'Fraunces', Georgia, serif; font-weight:600; margin:0; letter-spacing:-0.01em;}
+  p{margin:0 0 1em 0; max-width:66ch;}
+  a{color:inherit;}
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 28px;}
+  .mono{font-family:'IBM Plex Mono', monospace;}
+  ::selection{background:var(--lime); color:var(--ink);}
+
+  /* NAV */
+  nav{
+    position:sticky; top:0; z-index:50;
+    background:rgba(255,255,255,0.92);
+    backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);
+  }
+  .navwrap{display:flex; align-items:center; justify-content:space-between; padding:16px 28px; max-width:var(--maxw); margin:0 auto;}
+  .brand{display:flex; align-items:center; gap:9px; font-family:'IBM Plex Mono', monospace; font-weight:500; font-size:14.5px;}
+  .brand .mark{width:9px; height:9px; border-radius:2px; background:var(--green); display:inline-block; transform:rotate(45deg);}
+  .navlinks{display:flex; gap:26px; font-size:14px;}
+  .navlinks a{text-decoration:none; opacity:0.78; transition:opacity 0.15s;}
+  .navlinks a:hover{opacity:1;}
+  .nav-cta{
+    font-family:'IBM Plex Mono', monospace; font-size:13px; font-weight:500;
+    background:var(--green); color:#fff; padding:9px 16px; text-decoration:none;
+    border-radius:3px;
+  }
+
+  /* HERO */
+  .hero{padding:88px 0 70px; position:relative; overflow:hidden;}
+  .hero-tag{
+    font-family:'IBM Plex Mono', monospace; font-size:13px; color:var(--green-dk);
+    display:flex; align-items:center; gap:9px; margin-bottom:26px;
+  }
+  .hero-tag .dot{width:7px; height:7px; border-radius:50%; background:var(--green); display:inline-block;}
+  .hero h1{font-size:clamp(38px, 5.4vw, 58px); line-height:1.06; max-width:16ch;}
+  .hero h1 .accent{color:var(--green);}
+  .hero .sub{margin-top:22px; font-size:18px; max-width:52ch; color:var(--muted);}
+  .hero-cta{display:flex; gap:16px; margin-top:34px; flex-wrap:wrap;}
+  .btn{
+    display:inline-block; padding:13px 24px; font-family:'IBM Plex Mono', monospace; font-size:13.5px;
+    text-decoration:none; border-radius:3px; border:1px solid var(--line);
+  }
+  .btn.solid{background:var(--green); color:#fff; border-color:var(--green); font-weight:600;}
+  .btn.solid:hover{background:var(--green-dk);}
+  .btn.outline{color:var(--ink);}
+
+  .hero-stats{
+    margin-top:60px; display:grid; grid-template-columns:repeat(4,1fr);
+    border-top:1px solid var(--line); padding-top:28px; gap:24px;
+  }
+  .hero-stats .num{font-family:'Fraunces', serif; font-size:28px; font-weight:600; color:var(--green-dk);}
+  .hero-stats .lbl{font-size:13px; color:var(--muted); margin-top:4px; max-width:18ch;}
+  @media (max-width:720px){ .hero-stats{grid-template-columns:repeat(2,1fr);} }
+
+  /* SECTION SHELL */
+  section{padding:74px 0;}
+  .section-head{margin-bottom:38px; max-width:60ch;}
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:var(--blue);
+    margin-bottom:12px; display:block;
+  }
+  .section-head h2{font-size:clamp(26px,3.2vw,34px);}
+  .section-head p{margin-top:14px; font-size:16px; color:var(--muted);}
+
+  /* SERVICES */
+  .service-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:22px;}
+  @media (max-width:860px){ .service-grid{grid-template-columns:1fr;} }
+  .service-card{
+    border:1px solid var(--line); border-radius:6px; padding:30px 26px;
+    background:var(--bg); transition:border-color 0.15s;
+  }
+  .service-card:hover{border-color:var(--green);}
+  .service-num{font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--muted); margin-bottom:18px; display:block;}
+  .service-card h3{font-size:20px; margin-bottom:10px;}
+  .service-card p{font-size:14.5px; color:var(--muted); margin-bottom:14px;}
+  .service-card ul{margin:0; padding-left:18px; font-size:13.5px; color:var(--muted);}
+  .service-card li{margin-bottom:5px;}
+  .service-link{
+    margin-top:16px; display:inline-block; font-size:13px; font-family:'IBM Plex Mono', monospace;
+    color:var(--green-dk); text-decoration:none; border-bottom:1px solid var(--green);
+  }
+
+  /* SECTORS */
+  .sector-strip{
+    display:flex; gap:1px; background:var(--line); border:1px solid var(--line);
+    border-radius:6px; overflow:hidden; margin-top:8px; flex-wrap:wrap;
+  }
+  .sector-item{flex:1; min-width:200px; background:var(--bg); padding:22px 20px;}
+  .sector-item .tag{font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--blue); text-transform:uppercase; letter-spacing:0.05em; display:block; margin-bottom:8px;}
+  .sector-item h3{font-size:16.5px; margin-bottom:6px;}
+  .sector-item p{font-size:13.5px; color:var(--muted); margin-bottom:0;}
+
+  /* FIELD TESTING DEEP DIVE */
+  .testing-section{background:var(--bg-2);}
+  .test-table{width:100%; border-collapse:collapse; margin-top:8px; font-size:14.5px; background:var(--bg); border-radius:6px; overflow:hidden; border:1px solid var(--line);}
+  .test-table th{
+    text-align:left; font-family:'IBM Plex Mono', monospace; font-weight:500;
+    font-size:12px; text-transform:uppercase; letter-spacing:0.04em;
+    padding:12px 16px; background:var(--ink); color:#fff;
+  }
+  .test-table td{padding:14px 16px; border-bottom:1px solid var(--line); vertical-align:top;}
+  .test-table tr:last-child td{border-bottom:none;}
+  .test-table .check{color:var(--green-dk); font-weight:600;}
+  .test-table .method{font-weight:600;}
+
+  .reach-grid{display:grid; grid-template-columns:1.1fr 1fr; gap:48px; margin-top:40px; align-items:start;}
+  @media (max-width:760px){.reach-grid{grid-template-columns:1fr;}}
+  .ring-diagram{display:flex; justify-content:center; align-items:center;}
+  .ring-legend{margin-top:18px; display:flex; flex-direction:column; gap:10px;}
+  .ring-legend .row{display:flex; align-items:center; gap:10px; font-size:14px;}
+  .ring-legend .swatch{width:12px; height:12px; border-radius:2px; flex:none;}
+  .fuel-row{margin-bottom:16px;}
+  .fuel-row .top{display:flex; justify-content:space-between; font-size:13.5px; margin-bottom:6px;}
+  .fuel-row .track{height:9px; background:var(--bg); border:1px solid var(--line); border-radius:5px; overflow:hidden;}
+  .fuel-row .fill{height:100%; border-radius:5px;}
+  .callout{
+    margin-top:26px; padding:18px 20px; border-left:3px solid var(--blue);
+    background:var(--bg); border-radius:0 6px 6px 0; font-size:14px;
+  }
+  .callout .src{font-size:11.5px; color:var(--muted); margin-top:8px; font-family:'IBM Plex Mono',monospace;}
+
+  /* TRACK RECORD */
+  .timeline{position:relative; margin-top:24px; padding-left:26px; border-left:2px solid var(--line);}
+  .tl-item{position:relative; padding-bottom:34px;}
+  .tl-item:last-child{padding-bottom:0;}
+  .tl-item::before{
+    content:""; position:absolute; left:-32px; top:3px; width:11px; height:11px; border-radius:50%;
+    background:var(--green); border:2px solid var(--bg); outline:2px solid var(--green);
+  }
+  .tl-year{font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:var(--green-dk); margin-bottom:4px;}
+  .tl-item h3{font-size:18px; margin-bottom:6px;}
+  .tl-item p{font-size:14.5px; color:var(--muted); margin-bottom:0;}
+
+  /* ECOSYSTEM */
+  .peer-row{display:flex; flex-wrap:wrap; gap:14px; margin-top:24px;}
+  .peer-chip{
+    border:1px solid var(--line); border-radius:20px; padding:9px 18px;
+    font-size:13.5px; font-family:'IBM Plex Mono', monospace; color:var(--muted);
+  }
+
+  /* LOGISTICS */
+  .logi-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:8px;}
+  @media (max-width:760px){ .logi-grid{grid-template-columns:1fr;} }
+  .logi-card{background:var(--bg-2); border-radius:6px; padding:24px;}
+  .logi-card .big{font-family:'Fraunces',serif; font-size:24px; font-weight:600; color:var(--blue);}
+  .logi-card .cap{font-size:13.5px; color:var(--muted); margin-top:8px;}
+
+  /* PRICING */
+  .price-table{width:100%; border-collapse:collapse; margin-top:8px; font-size:14px; background:var(--bg); border:1px solid var(--line); border-radius:6px; overflow:hidden;}
+  .price-table th{
+    text-align:left; font-family:'IBM Plex Mono', monospace; font-weight:500;
+    font-size:11.5px; text-transform:uppercase; letter-spacing:0.04em;
+    padding:11px 14px; background:var(--bg-2); color:var(--muted);
+  }
+  .price-table td{padding:13px 14px; border-bottom:1px solid var(--line);}
+  .price-table tr:last-child td{border-bottom:none;}
+  .price-table .amt{font-family:'IBM Plex Mono', monospace; white-space:nowrap; color:var(--green-dk); font-weight:600;}
+  .price-note{margin-top:16px; font-size:13px; color:var(--muted); max-width:70ch;}
+
+  /* CONTACT / PROPOSAL */
+  .contact-section{background:var(--ink); color:#fff;}
+  .contact-grid{display:grid; grid-template-columns:1fr 1fr; gap:56px; align-items:start;}
+  @media (max-width:860px){ .contact-grid{grid-template-columns:1fr; gap:40px;} }
+  .contact-section h2{color:#fff; font-size:clamp(26px,3.4vw,34px); max-width:16ch;}
+  .contact-section .section-head p{color:rgba(255,255,255,0.72);}
+  .contact-info{margin-top:28px; display:flex; flex-direction:column; gap:16px;}
+  .contact-info .row{display:flex; gap:12px; font-size:14.5px;}
+  .contact-info .k{font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--lime); min-width:80px;}
+  .contact-info .v{color:rgba(255,255,255,0.88);}
+
+  form{display:flex; flex-direction:column; gap:14px;}
+  .field{display:flex; flex-direction:column; gap:6px;}
+  .field label{font-family:'IBM Plex Mono', monospace; font-size:12px; color:rgba(255,255,255,0.65);}
+  .field input, .field select, .field textarea{
+    background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.22);
+    color:#fff; padding:11px 13px; font-family:'IBM Plex Sans', sans-serif; font-size:14px;
+    border-radius:4px; outline:none;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus{border-color:var(--green);}
+  .field textarea{resize:vertical; min-height:90px;}
+  .submit-btn{
+    margin-top:6px; background:var(--green); color:#fff; border:none; padding:13px 22px;
+    font-family:'IBM Plex Mono', monospace; font-size:13.5px; font-weight:600; border-radius:4px;
+    cursor:pointer; width:fit-content;
+  }
+  .submit-btn:hover{background:var(--green-dk);}
+  .form-note{font-size:12px; color:rgba(255,255,255,0.55); margin-top:2px;}
+
+  footer{padding:30px 0; font-size:12.5px; color:var(--muted); border-top:1px solid var(--line);}
+  .footwrap{display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px;}
+
+  @media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto;} }
+
+  /* CLIMATE PRO VISUAL LAYER */
+  .hero{
+    background:
+      radial-gradient(circle at 88% 20%, rgba(143,201,58,.18), transparent 28%),
+      radial-gradient(circle at 75% 75%, rgba(24,104,168,.10), transparent 30%),
+      var(--bg);
+  }
+  .hero:after{
+    content:"";
+    position:absolute; inset:auto -10% -90px auto; width:420px; height:220px;
+    background:linear-gradient(135deg, transparent 48%, rgba(21,154,86,.08) 49%, transparent 51%);
+    transform:rotate(-8deg); pointer-events:none;
+  }
+  .climate-badge{
+    display:inline-flex; align-items:center; gap:8px; margin-top:22px;
+    padding:7px 11px; border:1px solid var(--line); border-radius:999px;
+    background:rgba(255,255,255,.65); font-family:'IBM Plex Mono',monospace;
+    font-size:11px; color:var(--green-dk);
+  }
+  .impact-strip{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:34px;
+  }
+  .impact-card{
+    padding:20px; border:1px solid var(--line); border-radius:8px;
+    background:linear-gradient(180deg,var(--bg),var(--bg-2));
+  }
+  .impact-card .impact-icon{font-size:18px; margin-bottom:12px;}
+  .impact-card strong{display:block; font-family:'Fraunces',serif; font-size:19px;}
+  .impact-card span{display:block; margin-top:4px; color:var(--muted); font-size:13px;}
+  .proof-grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:22px; margin-top:28px;
+  }
+  .proof-card{
+    border:1px solid var(--line); border-radius:8px; padding:24px;
+    background:var(--bg);
+  }
+  .proof-card h3{font-size:18px; margin-bottom:8px;}
+  .proof-card p{font-size:14px; color:var(--muted); margin-bottom:0;}
+  .metric-band{
+    margin-top:30px; padding:20px 22px; border-radius:8px;
+    background:var(--ink); color:#fff; display:flex; justify-content:space-between;
+    gap:20px; flex-wrap:wrap; align-items:center;
+  }
+  .metric-band .metric{font-family:'IBM Plex Mono',monospace; font-size:12px;}
+  .metric-band .metric strong{font-family:'Fraunces',serif; font-size:23px; color:var(--lime); margin-right:7px;}
+  .service-card{box-shadow:0 8px 28px rgba(14,31,23,.035);}
+  .service-card:hover{transform:translateY(-2px); box-shadow:0 12px 32px rgba(14,31,23,.08);}
+  .btn{transition:transform .15s, box-shadow .15s, background .15s;}
+  .btn:hover{transform:translateY(-1px); box-shadow:0 7px 20px rgba(14,31,23,.08);}
+  .section-divider{
+    height:1px; margin:0; background:linear-gradient(90deg,transparent,var(--line),transparent);
+  }
+  @media(max-width:720px){
+    .impact-strip,.proof-grid{grid-template-columns:1fr;}
+  }
+
+  .reveal{opacity:0; transform:translateY(14px); transition:opacity .55s ease, transform .55s ease;}
+  .reveal.is-visible{opacity:1; transform:none;}
+
+  .company-intro{padding-top:78px;}
+  .company-intro .proof-card{min-height:155px;}
+  .service-card{transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;}
+  .service-card:hover{transform:translateY(-3px);}
+  .brand{letter-spacing:.03em;}
+  .brand span:last-child{font-weight:600;}
+  .hero .sub{font-size:19px; line-height:1.65;}
+  .contact-section{position:relative; overflow:hidden;}
+  .contact-section:before{
+    content:""; position:absolute; width:420px; height:420px; right:-180px; top:-190px;
+    border:1px solid rgba(255,255,255,.12); border-radius:50%;
+  }
+  .contact-section:after{
+    content:""; position:absolute; width:280px; height:280px; right:-110px; top:-120px;
+    border:1px solid rgba(143,201,58,.22); border-radius:50%;
+  }
+  .contact-grid,.contact-section .wrap{position:relative; z-index:1;}
+  @media(max-width:900px){
+    .navlinks{gap:14px;}
+  }
+
+  /* HIGH-CONTRAST CORPORATE THEME */
+  :root{
+    --ink:#10251A;
+    --bg:#FFFFFF;
+    --bg-2:#EAF3EE;
+    --line:#B8C9BF;
+    --green:#087A43;
+    --green-dk:#045D32;
+    --blue:#087A43;
+    --lime:#6FAE20;
+    --muted:#405248;
+    --white:#FFFFFF;
+  }
+
+  body{color:var(--ink); background:var(--bg);}
+  p{color:var(--muted);}
+  .hero .sub,.section-head p,.service-card p,.service-card ul,
+  .sector-item p,.tl-item p,.logi-card .cap,.price-note,
+  .proof-card p,.impact-card span{color:#405248;}
+
+  /* White-background cards */
+  .service-card,
+  .proof-card,
+  .impact-card{
+    background:#FFFFFF;
+    border:1px solid #AFC2B7;
+    box-shadow:0 5px 18px rgba(16,37,26,.07);
+  }
+  .service-card:hover,
+  .proof-card:hover,
+  .impact-card:hover{
+    border-color:var(--green);
+    box-shadow:0 10px 26px rgba(16,37,26,.12);
+  }
+
+  /* Stronger headings on light backgrounds */
+  h1,h2,h3{color:#10251A;}
+  .section-head h2,.service-card h3,.proof-card h3,.sector-item h3,
+  .tl-item h3{color:#10251A;}
+  .eyebrow{color:#087A43; font-weight:600;}
+  .hero-tag{color:#045D32; font-weight:600;}
+
+  /* Navigation */
+  nav{
+    background:rgba(255,255,255,.97);
+    border-bottom:1px solid #AFC2B7;
+    box-shadow:0 2px 12px rgba(16,37,26,.06);
+  }
+  .navlinks a{color:#18382A; opacity:1; font-weight:500;}
+  .navlinks a:hover{color:#087A43;}
+  .brand{color:#10251A;}
+
+  /* Buttons */
+  .btn.outline{
+    color:#10251A;
+    border:1.5px solid #527064;
+    background:#FFFFFF;
+    font-weight:600;
+  }
+  .btn.outline:hover{
+    background:#EAF3EE;
+    border-color:#087A43;
+    color:#045D32;
+  }
+  .btn.solid,.nav-cta,.submit-btn{
+    background:#087A43;
+    border-color:#087A43;
+  }
+  .btn.solid:hover,.nav-cta:hover,.submit-btn:hover{
+    background:#045D32;
+  }
+
+  /* Section backgrounds */
+  #sectors,#ecosystem,#pricing,#approach{
+    background:#EAF3EE !important;
+  }
+  .testing-section{background:#F3F8F5;}
+  .sector-strip{border-color:#AFC2B7;background:#AFC2B7;}
+  .sector-item{background:#FFFFFF;}
+  .sector-item .tag{color:#087A43;font-weight:600;}
+
+  /* Tables */
+  .test-table,.price-table{
+    border-color:#AFC2B7;
+    box-shadow:0 4px 14px rgba(16,37,26,.05);
+  }
+  .test-table th{
+    background:#10251A;
+    color:#FFFFFF;
+  }
+  .test-table td,.price-table td{
+    color:#203A2D;
+  }
+  .test-table tr:nth-child(even) td,
+  .price-table tr:nth-child(even) td{
+    background:#F3F8F5;
+  }
+  .price-table th{
+    background:#DCEAE3;
+    color:#18382A;
+    border-bottom:1px solid #AFC2B7;
+  }
+  .price-table .amt{
+    color:#045D32;
+    font-weight:700;
+  }
+
+  /* Supporting components */
+  .logi-card{
+    background:#FFFFFF;
+    border:1px solid #AFC2B7;
+    box-shadow:0 5px 16px rgba(16,37,26,.06);
+  }
+  .logi-card .big{color:#087A43;}
+  .peer-chip{
+    background:#FFFFFF;
+    border-color:#AFC2B7;
+    color:#18382A;
+    font-weight:500;
+  }
+  .callout{
+    background:#FFFFFF;
+    border-left:4px solid #087A43;
+    box-shadow:0 4px 14px rgba(16,37,26,.05);
+    color:#203A2D;
+  }
+  .ring-legend .row{color:#203A2D;}
+  .fuel-row .top{color:#203A2D;}
+  .fuel-row .track{background:#FFFFFF;border-color:#AFC2B7;}
+
+  /* Impact band */
+  .metric-band{background:#10251A;}
+  .metric-band .metric{color:#FFFFFF;}
+  .metric-band .metric strong{color:#B7E56A;}
+
+  /* Hero badge */
+  .climate-badge{
+    background:#F3F8F5;
+    border-color:#AFC2B7;
+    color:#045D32;
+    font-weight:600;
+  }
+
+  /* Timeline */
+  .timeline{border-left-color:#AFC2B7;}
+  .tl-year{color:#045D32;font-weight:600;}
+
+  /* Footer remains intentionally dark */
+  footer{
+    background:#F3F8F5;
+    color:#405248;
+    border-top:1px solid #AFC2B7;
+  }
+
+  /* Contact fields */
+  .contact-section .field input,.contact-section .field select,.contact-section .field textarea{
+    background:rgba(255,255,255,.08);
+    color:#FFFFFF;
+    border-color:rgba(255,255,255,.45);
+  }
+  .field input::placeholder,.field textarea::placeholder{
+    color:rgba(255,255,255,.68);
+  }
+
+  /* Better visibility for keyboard users */
+  a:focus-visible,button:focus-visible,input:focus-visible,
+  select:focus-visible,textarea:focus-visible{
+    outline:3px solid #6FAE20;
+    outline-offset:3px;
+  }
+
+  /* Mobile navigation / spacing */
+  @media(max-width:720px){
+    .hero{padding-top:64px;}
+    .navwrap{padding-left:20px;padding-right:20px;}
+  }
+
+  /* CONTACT SECTION — HIGH VISIBILITY */
+  .contact-section{
+    background:#0B2117 !important;
+    color:#FFFFFF !important;
+    border-top:6px solid #6FAE20;
+    padding-top:88px;
+    padding-bottom:88px;
+  }
+  .contact-section .eyebrow{
+    color:#B7E56A !important;
+    font-weight:700;
+    letter-spacing:.08em;
+  }
+  .contact-section h2{
+    color:#FFFFFF !important;
+    font-size:clamp(32px,4vw,46px);
+    line-height:1.08;
+  }
+  .contact-section p{
+    color:#E1ECE6 !important;
+  }
+  .contact-section .contact-info{
+    background:rgba(255,255,255,.07);
+    border:1px solid rgba(255,255,255,.22);
+    border-radius:10px;
+    padding:20px;
+    margin-top:28px;
+  }
+  .contact-section .contact-info .row{
+    padding:12px 0;
+    border-bottom:1px solid rgba(255,255,255,.13);
+  }
+  .contact-section .contact-info .row:last-child{border-bottom:none;}
+  .contact-section .contact-info .k{
+    color:#B7E56A !important;
+    font-weight:700;
+  }
+  .contact-section .contact-info .v{
+    color:#FFFFFF !important;
+    font-weight:500;
+  }
+  .contact-section form{
+    background:#FFFFFF;
+    border-radius:12px;
+    padding:28px;
+    box-shadow:0 16px 45px rgba(0,0,0,.22);
+  }
+  .contact-section .field label{
+    color:#17382A !important;
+    font-weight:700;
+  }
+  .contact-section .field input,
+  .contact-section .field select,
+  .contact-section .field textarea{
+    background:#FFFFFF !important;
+    color:#10251A !important;
+    border:1.5px solid #8EA79A !important;
+    border-radius:6px;
+    padding:13px 14px;
+  }
+  .contact-section .field input::placeholder,
+  .contact-section .field textarea::placeholder{
+    color:#60766A !important;
+    opacity:1;
+  }
+  .contact-section .field input:focus,
+  .contact-section .field select:focus,
+  .contact-section .field textarea:focus{
+    border-color:#087A43 !important;
+    box-shadow:0 0 0 3px rgba(8,122,67,.13);
+  }
+  .contact-section .submit-btn{
+    width:100%;
+    padding:15px 22px;
+    background:#087A43 !important;
+    color:#FFFFFF !important;
+    border:2px solid #087A43 !important;
+    font-size:14px;
+    border-radius:6px;
+  }
+  .contact-section .submit-btn:hover{
+    background:#045D32 !important;
+    border-color:#045D32 !important;
+  }
+  .contact-section .form-note{
+    color:#52685D !important;
+    text-align:center;
+    margin-top:10px;
+  }
+  .contact-section .form-title{
+    color:#10251A;
+    font-family:'Fraunces',serif;
+    font-size:23px;
+    margin-bottom:18px;
+  }
+  .contact-section .contact-cta{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    margin-top:24px;
+    padding:10px 15px;
+    border:1px solid rgba(183,229,106,.45);
+    border-radius:999px;
+    color:#FFFFFF;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    background:rgba(111,174,32,.12);
+  }
+  @media(max-width:860px){
+    .contact-section form{padding:22px;}
+  }
+
+  /* FINAL CONTACT AREA — PALE CLIMATE BACKGROUND + DARK HIGH-CONTRAST TEXT */
+  .contact-section{
+    background:#EAF4EE !important;
+    color:#10251A !important;
+    border-top:1px solid #C2D4C9;
+    padding:88px 0 82px;
+    position:relative;
+    overflow:hidden;
+  }
+  .contact-section:before{
+    content:"";
+    position:absolute;
+    width:330px;height:330px;
+    right:-120px;top:-205px;
+    border:1px solid rgba(111,174,32,.38);
+    border-radius:50%;
+    pointer-events:none;
+  }
+  .contact-section:after{
+    content:"";
+    position:absolute;
+    width:220px;height:220px;
+    right:-75px;top:-150px;
+    border:1px solid rgba(111,174,32,.18);
+    border-radius:50%;
+    pointer-events:none;
+  }
+  .contact-section .wrap,
+  .contact-section .contact-grid{
+    position:relative;
+    z-index:2;
+  }
+  .contact-section .eyebrow{
+    color:#087A43 !important;
+    font-weight:700;
+    letter-spacing:.08em;
+  }
+  .contact-section h2{
+    color:#10251A !important;
+    font-size:clamp(34px,4.3vw,50px);
+    line-height:1.08;
+    max-width:14ch;
+  }
+  .contact-section .contact-grid > div:first-child > p{
+    color:#243E31 !important;
+    font-size:17px;
+    line-height:1.65;
+  }
+  .contact-section .contact-info{
+    margin-top:28px;
+    display:flex;
+    flex-direction:column;
+    gap:0;
+    background:transparent;
+    border:none;
+    padding:0;
+  }
+  .contact-section .contact-info .row{
+    display:grid;
+    grid-template-columns:95px 1fr;
+    gap:16px;
+    padding:16px 0;
+    border-bottom:1px solid #C4D5CB;
+    font-size:15px;
+  }
+  .contact-section .contact-info .row:last-child{border-bottom:none;}
+  .contact-section .contact-info .k{
+    color:#087A43 !important;
+    font-weight:700;
+    letter-spacing:.04em;
+  }
+  .contact-section .contact-info .v{
+    color:#10251A !important;
+    font-weight:500;
+  }
+  .contact-section .contact-cta{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    margin-top:20px;
+    padding:9px 13px;
+    border:1px solid #B7D0C0;
+    border-radius:999px;
+    color:#315345 !important;
+    background:#F6FBF8;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    font-weight:600;
+  }
+  .contact-section form{
+    background:#FFFFFF !important;
+    border:1px solid #B8CBC0;
+    border-radius:12px;
+    padding:28px;
+    box-shadow:0 14px 38px rgba(16,37,26,.10);
+  }
+  .contact-section .form-title{
+    color:#10251A !important;
+    font-family:'Fraunces',serif;
+    font-size:23px;
+    font-weight:600;
+    margin-bottom:20px;
+  }
+  .contact-section .field{
+    gap:7px;
+  }
+  .contact-section .field label{
+    color:#10251A !important;
+    font-family:'IBM Plex Sans',sans-serif;
+    font-size:14px;
+    font-weight:700;
+  }
+  .contact-section .field input,
+  .contact-section .field select,
+  .contact-section .field textarea{
+    background:#FFFFFF !important;
+    color:#10251A !important;
+    border:1.5px solid #8EA79A !important;
+    border-radius:6px;
+    padding:13px 14px;
+    font-family:'IBM Plex Sans',sans-serif;
+    font-size:15px;
+  }
+  .contact-section .field input::placeholder,
+  .contact-section .field textarea::placeholder{
+    color:#65776E !important;
+    opacity:1;
+  }
+  .contact-section .field input:focus,
+  .contact-section .field select:focus,
+  .contact-section .field textarea:focus{
+    border-color:#087A43 !important;
+    box-shadow:0 0 0 3px rgba(8,122,67,.12);
+  }
+  .contact-section .submit-btn{
+    width:100%;
+    margin-top:7px;
+    padding:15px 22px;
+    background:#087A43 !important;
+    color:#FFFFFF !important;
+    border:2px solid #087A43 !important;
+    border-radius:6px;
+    font-size:15px;
+    font-weight:700;
+  }
+  .contact-section .submit-btn:hover{
+    background:#045D32 !important;
+    border-color:#045D32 !important;
+  }
+  .contact-section .form-note{
+    color:#52685D !important;
+    text-align:left;
+    font-size:12px;
+    line-height:1.5;
+    margin-top:10px;
+  }
+  @media(max-width:860px){
+    .contact-section{padding:68px 0;}
+    .contact-section form{padding:22px;}
+    .contact-section .contact-info .row{
+      grid-template-columns:1fr;
+      gap:5px;
+    }
+  }
+
+  /* GLOBAL DARK-BACKGROUND CONTRAST — WHITE TEXT */
+  .contact-section,
+  .contact-section h1,
+  .contact-section h2,
+  .contact-section h3,
+  .contact-section p,
+  .contact-section .section-head,
+  .contact-section .section-head p,
+  .contact-section .contact-info,
+  .contact-section .contact-info .v,
+  .contact-section .contact-cta{
+    color:#FFFFFF !important;
+  }
+
+  .contact-section .eyebrow,
+  .contact-section .contact-info .k{
+    color:#B7E56A !important;
+  }
+
+  /* Any dark/ink bands or cards */
+  .metric-band,
+  .metric-band h1,
+  .metric-band h2,
+  .metric-band h3,
+  .metric-band p,
+  .metric-band span,
+  .metric-band .metric{
+    color:#FFFFFF !important;
+  }
+  .metric-band .metric strong{
+    color:#B7E56A !important;
+  }
+
+  .test-table th{
+    color:#FFFFFF !important;
+    background:#10251A !important;
+  }
+
+  /* If the site uses an ink/dark section directly */
+  section[style*="background:var(--ink)"],
+  section[style*="background:#0"],
+  section[style*="background: #0"]{
+    color:#FFFFFF !important;
+  }
+  section[style*="background:var(--ink)"] h1,
+  section[style*="background:var(--ink)"] h2,
+  section[style*="background:var(--ink)"] h3,
+  section[style*="background:var(--ink)"] p{
+    color:#FFFFFF !important;
+  }
+
+  /* Dark navigation/hero elements */
+  .nav-cta{
+    color:#FFFFFF !important;
+  }
+
+  /* Dark footer variants */
+  footer[style*="background:#0"],
+  footer.dark{
+    color:#FFFFFF !important;
+  }
+  footer[style*="background:#0"] a,
+  footer.dark a{
+    color:#FFFFFF !important;
+  }
+
+  /* White text on green buttons */
+  .btn.solid,
+  .submit-btn,
+  .nav-cta{
+    color:#FFFFFF !important;
+  }
+
+  /* Improve contrast for dark-background small notes */
+  .dark-section .form-note,
+  .dark-section .muted,
+  .dark-section .eyebrow{
+    color:#E6F0EA !important;
+  }
+
+  @media(max-width:720px){
+    .contact-section h2{color:#FFFFFF !important;}
+  }
+
+  /* =========================================================
+     CARBON ANALYTICA — STRICT BLACK / WHITE / GREEN PALETTE
+     No blue accents anywhere.
+     ========================================================= */
+  :root{
+    --ink:#0B1711;
+    --bg:#FFFFFF;
+    --bg-2:#EEF7F1;
+    --line:#B8CDBE;
+    --green:#087A43;
+    --green-dk:#045D32;
+    --blue:#087A43; /* compatibility only: mapped to green */
+    --lime:#9BD34A;
+    --muted:#3E5147;
+    --white:#FFFFFF;
+  }
+
+  body{
+    background:#FFFFFF;
+    color:#0B1711;
+  }
+
+  /* Replace every blue-oriented visual role with green */
+  .eyebrow,
+  .hero-tag,
+  .service-link,
+  .sector-item .tag,
+  .tl-year,
+  .logi-card .big{
+    color:#087A43 !important;
+  }
+
+  .hero-tag .dot{
+    background:#087A43 !important;
+  }
+
+  /* White sections */
+  .service-card,
+  .proof-card,
+  .impact-card,
+  .logi-card,
+  .callout,
+  .peer-chip{
+    background:#FFFFFF !important;
+    color:#0B1711 !important;
+    border-color:#B8CDBE !important;
+  }
+
+  /* Light green sections */
+  #sectors,
+  #ecosystem,
+  #pricing,
+  #approach{
+    background:#EEF7F1 !important;
+  }
+
+  .testing-section{
+    background:#F5FAF7 !important;
+  }
+
+  /* Strong green instead of blue anywhere */
+  .callout{
+    border-left-color:#087A43 !important;
+  }
+
+  .ring-legend .swatch,
+  .fuel-row .fill[style*="--blue"],
+  .fuel-row .fill[style*="#087A43"],
+  .fuel-row .fill[style*="#087A43"]{
+    background:#087A43 !important;
+  }
+
+  /* Remove blue from SVG diagram */
+  .ring-diagram svg circle[stroke="#087A43"]{
+    stroke:#087A43 !important;
+  }
+  .ring-diagram svg text[fill="#087A43"]{
+    fill:#087A43 !important;
+  }
+
+  /* Dark areas = white text + green highlights */
+  .metric-band,
+  .contact-section{
+    background:#0B1711 !important;
+    color:#FFFFFF !important;
+  }
+
+  .metric-band *,
+  .contact-section h1,
+  .contact-section h2,
+  .contact-section h3,
+  .contact-section p,
+  .contact-section .contact-info .v,
+  .contact-section .contact-cta{
+    color:#FFFFFF !important;
+  }
+
+  .metric-band .metric strong,
+  .contact-section .eyebrow,
+  .contact-section .contact-info .k{
+    color:#9BD34A !important;
+  }
+
+  /* Contact form remains white for maximum contrast */
+  .contact-section form{
+    background:#FFFFFF !important;
+    color:#0B1711 !important;
+    border:1px solid #B8CDBE !important;
+  }
+
+  .contact-section .form-title,
+  .contact-section .field label{
+    color:#0B1711 !important;
+  }
+
+  .contact-section .field input,
+  .contact-section .field select,
+  .contact-section .field textarea{
+    background:#FFFFFF !important;
+    color:#0B1711 !important;
+    border:1.5px solid #789487 !important;
+  }
+
+  .contact-section .field input::placeholder,
+  .contact-section .field textarea::placeholder{
+    color:#52675C !important;
+  }
+
+  .contact-section .submit-btn{
+    background:#087A43 !important;
+    color:#FFFFFF !important;
+    border-color:#087A43 !important;
+  }
+
+  .contact-section .submit-btn:hover{
+    background:#045D32 !important;
+    border-color:#045D32 !important;
+  }
+
+  .contact-section .form-note{
+    color:#3E5147 !important;
+  }
+
+  /* Navigation */
+  nav{
+    background:rgba(255,255,255,.98) !important;
+    border-bottom:1px solid #B8CDBE !important;
+  }
+
+  .navlinks a{
+    color:#0B1711 !important;
+  }
+
+  .navlinks a:hover{
+    color:#087A43 !important;
+  }
+
+  .nav-cta{
+    background:#087A43 !important;
+    color:#FFFFFF !important;
+  }
+
+  .nav-cta:hover{
+    background:#045D32 !important;
+  }
+
+  /* Buttons */
+  .btn.solid{
+    background:#087A43 !important;
+    color:#FFFFFF !important;
+    border-color:#087A43 !important;
+  }
+
+  .btn.outline{
+    background:#FFFFFF !important;
+    color:#0B1711 !important;
+    border:1.5px solid #52675C !important;
+  }
+
+  .btn.outline:hover{
+    background:#EEF7F1 !important;
+    color:#045D32 !important;
+    border-color:#087A43 !important;
+  }
+
+  /* Tables */
+  .test-table th{
+    background:#0B1711 !important;
+    color:#FFFFFF !important;
+  }
+
+  .price-table th{
+    background:#DCEBE1 !important;
+    color:#0B1711 !important;
+  }
+
+  .price-table .amt{
+    color:#045D32 !important;
+  }
+
+  .test-table tr:nth-child(even) td,
+  .price-table tr:nth-child(even) td{
+    background:#F5FAF7 !important;
+  }
+
+  /* Footer */
+  footer{
+    background:#FFFFFF !important;
+    color:#3E5147 !important;
+    border-top:1px solid #B8CDBE !important;
+  }
+
+  footer strong{
+    color:#0B1711 !important;
+  }
+
+  /* Focus state — green only */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible{
+    outline:3px solid #9BD34A !important;
+    outline-offset:3px;
+  }
+
+  /* No blue links */
+  a{
+    text-decoration-color:#087A43;
+  }
+
+  /* USD + COUNTRY SELECTOR */
+  .currency-panel{
+    background:#FFFFFF;
+    border:1px solid #B8CDBE;
+    border-radius:10px;
+    padding:22px;
+    margin:8px 0 20px;
+    box-shadow:0 5px 18px rgba(11,23,17,.06);
+  }
+  .currency-controls{
+    display:grid;
+    grid-template-columns:1.2fr .8fr;
+    gap:22px;
+    align-items:end;
+  }
+  .currency-control{
+    display:flex;
+    flex-direction:column;
+    gap:7px;
+  }
+  .currency-control label{
+    font-size:13px;
+    font-weight:700;
+    color:#0B1711;
+  }
+  .currency-control select{
+    width:100%;
+    padding:13px 14px;
+    border:1.5px solid #789487;
+    border-radius:6px;
+    background:#FFFFFF;
+    color:#0B1711;
+    font-family:'IBM Plex Sans',sans-serif;
+    font-size:14px;
+    outline:none;
+  }
+  .currency-control select:focus{
+    border-color:#087A43;
+    box-shadow:0 0 0 3px rgba(8,122,67,.12);
+  }
+  .currency-summary{
+    min-height:72px;
+    padding:12px 15px;
+    background:#EEF7F1;
+    border:1px solid #B8CDBE;
+    border-radius:6px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+  }
+  .currency-summary span{
+    color:#3E5147;
+    font-size:11px;
+    font-family:'IBM Plex Mono',monospace;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+  .currency-summary strong{
+    color:#087A43;
+    font-family:'Fraunces',serif;
+    font-size:21px;
+  }
+  .currency-summary small{
+    color:#52675C;
+    font-size:11px;
+  }
+  .currency-note{
+    margin-top:16px;
+    padding:12px 14px;
+    border-left:3px solid #087A43;
+    background:#F5FAF7;
+    color:#3E5147;
+    font-size:12.5px;
+    line-height:1.55;
+  }
+  .price-table th:last-child,
+  .price-table td:last-child{
+    min-width:145px;
+  }
+  .price-table .local-amt{
+    color:#045D32;
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:700;
+    white-space:nowrap;
+  }
+  .pricing-disclaimer{
+    margin-top:16px;
+    padding:16px 18px;
+    background:#FFFFFF;
+    border:1px solid #B8CDBE;
+    border-radius:7px;
+    color:#3E5147;
+    font-size:12px;
+    line-height:1.6;
+  }
+  .pricing-disclaimer strong{color:#0B1711;}
+  @media(max-width:760px){
+    .currency-controls{grid-template-columns:1fr;}
+    .price-table{font-size:12px;}
+    .price-table th,.price-table td{padding:10px 9px;}
+  }
+
+</style>
+
+<style>
+/* Hero: high contrast + data/measurement/carbon visual */
+.hero { background:#000 !important; color:#fff !important; position:relative; overflow:hidden; }
+.hero::before { content:""; position:absolute; inset:0; background:
+  radial-gradient(circle at 78% 24%, rgba(45,190,95,.20), transparent 28%),
+  linear-gradient(90deg, #000 0%, #000 48%, rgba(0,0,0,.82) 100%); pointer-events:none; }
+.hero .container, .hero-content { position:relative; z-index:2; }
+.hero h1, .hero h2, .hero p, .hero .eyebrow { color:#fff !important; }
+.hero .eyebrow { color:#39d66b !important; font-weight:800; letter-spacing:.12em; }
+.hero .hero-visual { position:relative; z-index:2; min-height:460px; display:flex; align-items:center; justify-content:center; }
+.hero-visual-card { width:min(560px,100%); background:#fff; color:#000; border:2px solid #39d66b;
+  border-radius:24px; padding:24px; box-shadow:0 22px 60px rgba(0,0,0,.45); }
+.hero-visual-top { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:18px; }
+.hero-visual-title { font-weight:900; font-size:1rem; }
+.live-badge { background:#000; color:#39d66b; border-radius:999px; padding:7px 11px; font-size:.72rem; font-weight:800; }
+.data-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.data-box { background:#f4f7f4; border:1px solid #d7e3d9; border-radius:14px; padding:15px; }
+.data-box .label { font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; font-weight:800; color:#3f4b42; }
+.data-box .value { font-size:1.35rem; font-weight:900; margin-top:5px; }
+.data-box .green { color:#159447; }
+.mini-chart { margin-top:14px; height:92px; border-radius:14px; background:#000; padding:12px; display:flex; align-items:end; gap:7px; }
+.mini-chart span { flex:1; background:#39d66b; border-radius:5px 5px 2px 2px; min-height:18%; }
+.mini-chart span:nth-child(1){height:34%}.mini-chart span:nth-child(2){height:49%}.mini-chart span:nth-child(3){height:43%}
+.mini-chart span:nth-child(4){height:68%}.mini-chart span:nth-child(5){height:57%}.mini-chart span:nth-child(6){height:82%}
+.mini-chart span:nth-child(7){height:91%}.mini-chart span:nth-child(8){height:78%}
+.measure-strip { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-top:14px; }
+.measure-item { border:1px solid #d7e3d9; border-radius:12px; padding:11px; font-size:.78rem; font-weight:800; }
+.measure-icon { color:#159447; font-size:1.1rem; display:block; margin-bottom:4px; }
+.hero-proof { display:flex; flex-wrap:wrap; gap:9px; margin-top:22px; }
+.hero-proof span { border:1px solid rgba(57,214,107,.65); color:#fff; border-radius:999px; padding:7px 11px; font-size:.74rem; font-weight:800; background:rgba(255,255,255,.06); }
+@media(max-width:900px){
+ .hero .hero-visual { min-height:auto; margin-top:35px; }
+ .hero-visual-card { padding:18px; }
+}
+@media(max-width:560px){
+ .data-grid,.measure-strip { grid-template-columns:1fr; }
+ .hero-visual-card { border-radius:18px; }
+}
+</style>
+
+<style>
+.annual-carbon-note{
+  margin-top:16px;padding:14px 16px;border-left:4px solid #39d66b;
+  background:#f4f7f4;color:#111;border-radius:10px;font-size:.84rem;line-height:1.5;
+}
+.annual-carbon-note strong{color:#159447}
+</style>
+
+<style>
+/* Robust hero replacement */
+.hero{background:#000 !important;color:#fff !important;position:relative;overflow:hidden;min-height:700px;}
+.hero-grid-fixed{max-width:1180px;margin:auto;padding:90px 24px;display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,540px);gap:55px;align-items:center;}
+.hero-copy-fixed{color:#fff !important;position:relative;z-index:5;}
+.hero-copy-fixed .eyebrow{color:#39d66b !important;font-weight:800;letter-spacing:.1em;font-size:.78rem;}
+.hero-copy-fixed h1{color:#fff !important;font-size:clamp(2.7rem,5.8vw,5.4rem);line-height:1.03;margin:16px 0 22px;}
+.hero-copy-fixed h1 span{color:#39d66b !important;}
+.hero-copy-fixed p{color:#fff !important;max-width:650px;font-size:1.08rem;line-height:1.7;}
+.hero-tags-fixed{display:flex;flex-wrap:wrap;gap:9px;margin-top:24px;}
+.hero-tags-fixed span{color:#fff;border:1px solid #39d66b;border-radius:999px;padding:7px 11px;font-size:.7rem;font-weight:800;}
+.hero-buttons-fixed{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px;}
+.hero-card-fixed{background:#fff !important;color:#111 !important;border:2px solid #39d66b;border-radius:22px;padding:23px;box-shadow:0 25px 65px rgba(0,0,0,.65);position:relative;z-index:5;}
+.hero-card-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:18px;color:#111;}
+.hero-card-head b{background:#000;color:#39d66b;padding:7px 10px;border-radius:99px;font-size:.65rem;}
+.hero-data-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.hero-data-grid>div{background:#f2f6f3;border:1px solid #d3e0d7;border-radius:12px;padding:14px;}
+.hero-data-grid small{display:block;color:#405248;font-weight:800;font-size:.65rem;letter-spacing:.08em;}
+.hero-data-grid strong{display:block;color:#111;font-size:1.1rem;margin-top:5px;}
+.hero-data-grid .green{color:#087a43 !important;}
+.hero-data-grid p{color:#405248 !important;font-size:.72rem;margin:4px 0 0;}
+.hero-chart{height:80px;background:#000;border-radius:12px;margin-top:12px;padding:10px;display:flex;align-items:end;gap:6px;}
+.hero-chart i{display:block;flex:1;background:#39d66b;border-radius:4px 4px 1px 1px;}
+.hero-chart i:nth-child(1){height:30%}.hero-chart i:nth-child(2){height:46%}.hero-chart i:nth-child(3){height:38%}.hero-chart i:nth-child(4){height:62%}.hero-chart i:nth-child(5){height:55%}.hero-chart i:nth-child(6){height:76%}.hero-chart i:nth-child(7){height:92%}.hero-chart i:nth-child(8){height:82%}
+.hero-flow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;}
+.hero-flow span{border:1px solid #d3e0d7;border-radius:10px;padding:10px;font-size:.72rem;font-weight:800;text-align:center;color:#111;}
+@media(max-width:900px){.hero-grid-fixed{grid-template-columns:1fr;padding-top:70px;padding-bottom:70px;}.hero{min-height:auto;}.hero-card-fixed{margin-top:10px;}}
+@media(max-width:520px){.hero-data-grid{grid-template-columns:1fr;}.hero-flow{grid-template-columns:1fr;}}
+</style>
+
+
+<style id="final-contrast-clean">
+:root{
+  --ink:#0b0b0b !important;
+  --black:#000 !important;
+  --white:#fff !important;
+  --green:#087A43 !important;
+  --green-bright:#39D66B !important;
+  --muted-dark:#26332c !important;
+}
+
+/* Base */
+html,body{color:#0b0b0b !important;background:#fff !important;}
+p,li,td,th,label,small{color:#26332c !important;}
+h1,h2,h3,h4,h5,h6{color:#0b0b0b !important;}
+
+/* Remove unnecessary oversized vertical gaps */
+section{padding-top:64px !important;padding-bottom:64px !important;}
+section.hero{padding-top:0 !important;padding-bottom:0 !important;}
+.section-head{margin-bottom:28px !important;}
+.section-head p{margin-bottom:0 !important;}
+.service-grid,.sector-strip,.logi-grid,.proof-grid,.impact-strip{margin-top:18px !important;}
+
+/* Green accents only */
+a{color:#087A43;}
+a:hover{color:#045D32;}
+.eyebrow,.hero-tag,.service-link,.tl-year{color:#087A43 !important;}
+
+/* White / light backgrounds: BLACK text or GREEN accents */
+body,
+main,
+section:not(.hero):not(.contact-section),
+.service-card,
+.proof-card,
+.impact-card,
+.sector-item,
+.test-table,
+.price-table,
+.logi-card,
+.peer-chip,
+.form-card,
+.card,
+.white-bg,
+.bg-white{
+  color:#0b0b0b !important;
+}
+
+.service-card p,.service-card ul,
+.sector-item p,.tl-item p,
+.logi-card .cap,.price-note,
+.proof-card p,.impact-card span,
+.section-head p{
+  color:#26332c !important;
+}
+
+/* Tables */
+.test-table th{background:#000 !important;color:#fff !important;}
+.test-table td,
+.price-table td{color:#0b0b0b !important;}
+.price-table th{background:#EAF3EE !important;color:#0b0b0b !important;}
+.price-table .amt{color:#087A43 !important;}
+
+/* Navigation */
+nav{background:#fff !important;color:#0b0b0b !important;}
+nav a,.navlinks a,.brand{color:#0b0b0b !important;}
+nav a:hover,.navlinks a:hover{color:#087A43 !important;}
+
+/* Dark backgrounds: WHITE text, GREEN accents */
+.hero,
+.contact-section,
+footer,
+.dark,
+.dark-section,
+.bg-dark,
+.black-section,
+.black-bg,
+.metric-band{
+  background:#000 !important;
+  color:#fff !important;
+}
+
+.hero h1,.hero h2,.hero h3,.hero h4,
+.hero p,.hero li,.hero span,
+.contact-section h1,.contact-section h2,.contact-section h3,
+.contact-section h4,.contact-section p,.contact-section li,
+footer h1,footer h2,footer h3,footer h4,footer p,footer li,
+.metric-band,
+.metric-band *{
+  color:#fff !important;
+}
+
+.hero .eyebrow,
+.hero-copy-fixed .eyebrow,
+.hero h1 span,
+.contact-section a,
+footer a{
+  color:#39D66B !important;
+}
+
+/* Hero visual is intentionally white: keep its text black/green */
+.hero-card-fixed,
+.hero-card-fixed *{
+  color:#0b0b0b !important;
+}
+.hero-card-fixed .green,
+.hero-card-fixed .hero-card-head b{
+  color:#087A43 !important;
+}
+.hero-card-fixed .hero-card-head b{
+  background:#000 !important;
+}
+
+/* Contact form is white: black text and green controls */
+.contact-section .form-card,
+.contact-section form,
+.contact-section input,
+.contact-section textarea,
+.contact-section select{
+  color:#0b0b0b !important;
+  background:#fff !important;
+}
+.contact-section input::placeholder,
+.contact-section textarea::placeholder{
+  color:#526057 !important;
+  opacity:1 !important;
+}
+.contact-section .submit-btn{
+  background:#087A43 !important;
+  color:#fff !important;
+}
+
+/* Avoid blue anywhere in the final palette */
+
+/* Mobile spacing */
+@media(max-width:760px){
+  section{padding-top:48px !important;padding-bottom:48px !important;}
+}
+</style>
+
+<style id="layout-fixes">
+/* =========================================================
+   LAYOUT FIXES ONLY — structure, spacing, overflow.
+   No colours, fonts or theme values are changed here.
+   ========================================================= */
+
+/* Anchor links no longer hide under the sticky nav */
+html{scroll-padding-top:76px;}
+
+/* ---------- NAV ---------- */
+.brand{white-space:nowrap;}
+.nav-cta{white-space:nowrap;flex:none;}
+.nav-cta .short{display:none;}
+.navlinks a{flex:none;}
+
+/* Long CTA label swaps to a short one before it can collide with the links */
+@media(max-width:1000px){
+  .nav-cta .long{display:none;}
+  .nav-cta .short{display:inline;}
+}
+
+/* Narrow screens: links move to their own scrollable row instead of disappearing */
+@media(max-width:860px){
+  html{scroll-padding-top:104px;}
+  .navwrap{flex-wrap:wrap;row-gap:8px;padding:12px 20px;}
+  .navlinks{
+    order:3;width:100%;display:flex;gap:20px;
+    overflow-x:auto;white-space:nowrap;scrollbar-width:none;
+    padding-bottom:2px;
+  }
+  .navlinks::-webkit-scrollbar{display:none;}
+}
+
+/* ---------- HERO ---------- */
+/* One hero only: remove the extra outer padding/min-height stacked on top of the grid's own */
+.hero{padding:0;min-height:0;}
+.hero-grid-fixed{padding:76px 24px 84px;}
+/* Headline was so large it wrapped to 5–6 lines and pushed the card down */
+.hero-copy-fixed h1{font-size:clamp(2.4rem,4.4vw,3.9rem);}
+
+/* Text inside the white hero card was being turned white by ".hero p / .hero span" (higher specificity) */
+.hero .hero-card-fixed p,
+.hero .hero-card-fixed span{color:#0b0b0b !important;}
+
+@media(max-width:900px){
+  .hero-grid-fixed{padding:56px 20px 60px;gap:32px;}
+}
+
+/* ---------- STATS BAND (moved out of the black hero) ---------- */
+.stats-band{padding:48px 0 0;}
+.stats-band .hero-stats{margin-top:0;padding-top:0;border-top:0;}
+.stats-band .annual-carbon-note{margin-top:28px;}
+
+/* ---------- SECTORS ---------- */
+/* Flex-wrap left ragged rows and grey gaps; grid keeps the cells even */
+.sector-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));}
+.sector-item{min-width:0;}
+@media(max-width:900px){.sector-strip{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:520px){.sector-strip{grid-template-columns:1fr;}}
+
+/* ---------- TABLES ---------- */
+/* Tables scroll inside their own box instead of stretching the whole page sideways */
+.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;margin-top:8px;}
+.table-scroll .test-table,
+.table-scroll .price-table{margin-top:0;}
+.table-scroll .test-table{min-width:620px;}
+.table-scroll .price-table{min-width:680px;}
+
+/* ---------- FIELD TESTING DIAGRAM ---------- */
+.ring-diagram svg{max-width:100%;height:auto;}
+
+/* ---------- SECTION SEPARATION ---------- */
+/* Approach and Pricing sit back-to-back with the same background */
+#pricing{border-top:1px solid #B8CDBE;}
+
+/* ---------- TECHNOLOGY DISTRIBUTION ---------- */
+/* Background must not depend on var(--bg-2): under a dark OS theme that variable turns near-black
+   while the heading/paragraph colours stay fixed dark, making them unreadable. */
+#distribution{background:#EEF7F1 !important;}
+/* Step numbers used var(--muted), which turns pale grey (2.3:1) on the white cards in dark mode */
+.service-num{color:#3E5147;}
+/* 6-column grid: three cards on the first row, two wider cards on the second */
+.dist-flow{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:22px;margin-top:18px;}
+.dist-step{grid-column:span 2;}
+.dist-step.dist-wide{grid-column:span 3;}
+@media(max-width:860px){
+  .dist-flow{grid-template-columns:1fr;}
+  .dist-step,.dist-step.dist-wide{grid-column:auto;}
+}
+
+/* ---------- CONTACT ---------- */
+/* Intro paragraph was dark green on the dark section; an earlier, more specific rule was winning */
+.contact-section .contact-grid > div:first-child > p{color:#FFFFFF !important;}
+.contact-section .contact-cta{color:#087A43 !important;}
+
+/* ---------- FOOTER ---------- */
+/* Brand name was black-on-black */
+footer strong{color:#fff !important;}
+</style>
+
+<style id="a11y-polish">
+/* Accessibility and progressive enhancement. Kept last on purpose so nothing above can win. */
+.sr-only{
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%);
+  white-space:nowrap; border:0;
+}
+.skip-link{
+  position:fixed; left:-9999px; top:0; z-index:99;
+  padding:11px 18px; background:#087A43; color:#FFFFFF !important;
+  font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600;
+  text-decoration:none; border-radius:0 0 6px 0;
+}
+.skip-link:focus{left:12px; top:12px;}
+.brand{text-decoration:none !important;}
+/* Contact details are real links now: keep them white on the dark section, with a green underline */
+.contact-section .contact-info .v a{
+  color:#FFFFFF !important; text-decoration:underline;
+  text-decoration-color:#9BD34A; text-decoration-thickness:2px; text-underline-offset:3px;
+}
+.contact-section .contact-info .v a:hover,
+.contact-section .contact-info .v a:focus-visible{color:#9BD34A !important;}
+</style>
+<noscript>
+<style>.reveal{opacity:1 !important; transform:none !important;}</style>
+</noscript>
+<style id="nav-dropdown">
+/* OUR TECH DROPDOWN — disclosure nav: click/tap to open, Escape or click outside to close */
+.navwrap{position:relative;}
+.nav-drop{position:relative;flex:none;display:flex;align-items:center;}
+.nav-drop-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  background:none;border:0;padding:0;margin:0;cursor:pointer;
+  font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:14px;font-weight:400;
+  color:#0B1711 !important;opacity:.78;transition:opacity .15s,color .15s;
+}
+.nav-drop-btn:hover,
+.nav-drop-btn:focus-visible,
+.nav-drop.is-open .nav-drop-btn{opacity:1;color:#087A43 !important;}
+.nav-caret{font-size:9px;line-height:1;color:#087A43;transition:transform .18s ease;}
+.nav-drop.is-open .nav-caret{transform:rotate(180deg);}
+.nav-drop-menu{
+  position:absolute;top:calc(100% + 14px);left:-14px;z-index:60;
+  min-width:270px;display:none;
+  background:#FFFFFF;border:1px solid #B8CDBE;border-radius:8px;
+  box-shadow:0 18px 42px rgba(16,37,26,.15);padding:8px;
+}
+.nav-drop.is-open .nav-drop-menu{display:block;}
+.nav-drop-menu::before{
+  content:"";position:absolute;top:-7px;left:26px;width:12px;height:12px;
+  background:#FFFFFF;border-left:1px solid #B8CDBE;border-top:1px solid #B8CDBE;
+  transform:rotate(45deg);
+}
+.nav-drop-menu a{
+  display:block;padding:10px 12px;border-radius:6px;
+  font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:13.5px;font-weight:500;
+  color:#0B1711 !important;opacity:1 !important;text-decoration:none !important;white-space:nowrap;
+}
+.nav-drop-menu a:hover,
+.nav-drop-menu a:focus-visible{background:#EEF7F1;color:#087A43 !important;}
+/* Narrow screens: the panel spans the nav instead of hanging off one item */
+@media(max-width:860px){
+  .nav-drop{position:static;}
+  .nav-drop-menu{
+    position:absolute;top:calc(100% + 10px);left:20px;right:20px;min-width:0;
+  }
+  .nav-drop-menu::before{left:auto;right:56px;}
+}
+@media(prefers-reduced-motion:reduce){
+  .nav-caret{transition:none;}
+}
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<nav aria-label="Primary">
+  <div class="navwrap">
+    <a class="brand" href="#home"><span class="mark"></span><span>CARBON ANALYTICA</span></a>
+    <div class="navlinks">
+      <a href="#services">What We Do</a>
+      <a href="#about">About</a>
+      <a href="#track-record">Experience</a>
+      <div class="nav-drop is-open" id="techDrop">
+        <button type="button" class="nav-drop-btn" id="techDropBtn" aria-expanded="true" aria-controls="techDropMenu">
+          Our Tech<span class="nav-caret" aria-hidden="true">▾</span>
+        </button>
+        <div class="nav-drop-menu" id="techDropMenu">
+          <a href="#tech">Our Tech overview</a>
+          <a href="#tech-field">Field measurement kit</a>
+          <a href="#tech-data">Data collection &amp; QA</a>
+          <a href="#tech-report">Reporting &amp; dashboards</a>
+          <a href="#tech-lab">Lab network &amp; protocols</a>
+        </div>
+      </div>
+      <a href="#approach">Our Approach</a>
+      <a href="#contact">Contact</a>
+    </div>
+    <a class="nav-cta" href="#contact"><span class="long">Start a climate impact project</span><span class="short">Start a project</span></a>
+  </div>
+</nav>
+
+<header class="hero" id="home">
+  <div class="container hero-grid-fixed">
+    <div class="hero-copy-fixed">
+      <div class="eyebrow">FIELD DATA • MEASUREMENT • CARBON ACCOUNTING</div>
+      <h1>Turning field evidence into <span>carbon-ready data.</span></h1>
+      <p>We collect, test, measure and structure real-world energy data so clean-cooking and climate projects can make defensible, auditable decisions.</p>
+      <div class="hero-tags-fixed">
+        <span>FIELD DATA</span><span>PERFORMANCE TESTING</span><span>MRV / dMRV</span><span>CARBON ACCOUNTING</span>
+      </div>
+      <div class="hero-buttons-fixed">
+        <a href="#contact" class="btn solid">Discuss a project</a>
+        <a href="#services" class="btn outline">Explore capabilities</a>
+      </div>
+    </div>
+    <div class="hero-card-fixed">
+      <div class="hero-card-head"><strong>FIELD → DATA → CARBON</strong><b>MRV WORKFLOW</b></div>
+      <div class="hero-data-grid">
+        <div><small>FIELD RECORDS</small><strong>GPS + Survey</strong><p>Household &amp; device evidence</p></div>
+        <div><small>MEASUREMENT</small><strong class="green">Fuel / Energy</strong><p>Tests, meters &amp; usage data</p></div>
+        <div><small>DATA QUALITY</small><strong>QA / Verify</strong><p>Checks &amp; traceability</p></div>
+        <div><small>CARBON OUTPUT</small><strong class="green">tCO₂e / year</strong><p>Annual emission reductions</p></div>
+      </div>
+      <div class="hero-chart" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="hero-flow"><span>◉ Measure</span><span>▣ Report</span><span>✓ Verify</span></div>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+<div class="stats-band">
+  <div class="wrap">
+    <div class="hero-stats">
+      <div><div class="num">48+</div><div class="lbl">Field studies led per year</div></div>
+      <div><div class="num">20</div><div class="lbl">Core team, scalable by location</div></div>
+      <div><div class="num">6+ yrs</div><div class="lbl">Continuous applied field research</div></div>
+      <div><div class="num">Annual</div><div class="lbl">Full-year emission reductions accounted for</div></div>
+    </div>
+    <div class="annual-carbon-note"><strong>Annual carbon emission reductions accounted for</strong><br>Estimated using a conservative biomass baseline. Final accounting depends on measured fuel use, stove usage, biomass characteristics, non-renewable biomass assumptions and the applicable carbon methodology.</div>
+  </div>
+</div>
+
+<section id="about" class="company-intro">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">ABOUT CARBON ANALYTICA</span>
+      <h2>A climate intelligence partner for Africa</h2>
+      <p>We combine carbon measurement, field research, data systems and local implementation capability to help climate and energy organizations move from assumptions to evidence.</p>
+    </div>
+    <div class="proof-grid">
+      <div class="proof-card">
+        <h3>Climate &amp; carbon expertise</h3>
+        <p>Practical support across carbon MRV, clean cooking, distributed energy, household monitoring and climate-impact measurement.</p>
+      </div>
+      <div class="proof-card">
+        <h3>Built for the field</h3>
+        <p>We work where climate technologies are actually used — with households, communities, distribution networks and local research teams.</p>
+      </div>
+      <div class="proof-card">
+        <h3>Data you can act on</h3>
+        <p>We turn fragmented field information into structured datasets, reporting workflows, dashboards and decision-ready insights.</p>
+      </div>
+      <div class="proof-card">
+        <h3>East African execution</h3>
+        <p>Based in Nairobi, with field-oriented capability designed for projects operating across diverse African markets.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="services">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">WHAT WE DO</span>
+      <h2>Climate data, MRV and field intelligence — connected</h2>
+      <p>From household-level measurement to carbon reporting and operational analytics, we connect the evidence needed to design, verify and scale climate solutions.</p>
+    </div>
+    <div class="service-grid">
+      <div class="service-card">
+        <span class="service-num">01</span>
+        <h3>Carbon MRV &amp; climate impact</h3>
+        <p>Measurement, reporting and verification systems designed to make climate impact traceable, defensible and decision-ready.</p>
+        <ul>
+          <li>Project-level MRV design</li>
+          <li>Digital &amp; field-based monitoring</li>
+          <li>Audit-ready reporting</li>
+        </ul>
+      </div>
+      <div class="service-card">
+        <span class="service-num">02</span>
+        <h3>Climate data &amp; digital systems</h3>
+        <p>Turn distributed field data into reliable datasets, dashboards and automated reporting workflows.</p>
+        <ul>
+          <li>Mobile data collection systems</li>
+          <li>Dashboarding &amp; reporting automation</li>
+          <li>Data quality &amp; validation pipelines</li>
+        </ul>
+      </div>
+      <div class="service-card">
+        <span class="service-num">03</span>
+        <h3>Climate field research &amp; verification</h3>
+        <p>Ground-truth climate technologies and behavior through household research, testing, monitoring and verification.</p>
+        <ul>
+          <li>KPT, CCT, and WBT testing</li>
+          <li>Focus groups &amp; market surveys</li>
+          <li>Household energy monitoring</li>
+        </ul>
+        <a class="service-link" href="#testing">See field testing capability →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="distribution" style="background:var(--bg-2);">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">TECHNOLOGY DISTRIBUTION</span>
+      <h2>From first prospect to a technology that keeps working</h2>
+      <p>We run the full distribution chain for clean-cooking and energy technologies — finding the right households, placing units, securing carbon rights and keeping every unit in service, with data captured at each step.</p>
+    </div>
+    <div class="dist-flow">
+      <div class="service-card dist-step">
+        <span class="service-num">01</span>
+        <h3>Prospecting</h3>
+        <p>Identify and map the households, communities, retailers and local partners where the technology fits demand and current fuel use.</p>
+      </div>
+      <div class="service-card dist-step">
+        <span class="service-num">02</span>
+        <h3>Qualification</h3>
+        <p>Screen each prospect before a unit is placed — fuel use, existing stove, location and willingness to use it — so the baseline is documented from day one.</p>
+      </div>
+      <div class="service-card dist-step">
+        <span class="service-num">03</span>
+        <h3>Distribution</h3>
+        <p>Deliver technology to qualified households through field teams and local partners, with user training, GPS-tagged handover and unit registration.</p>
+      </div>
+      <div class="service-card dist-step dist-wide">
+        <span class="service-num">04</span>
+        <h3>Carbon waiver</h3>
+        <p>Collect signed user consent to waive or assign carbon rights, linked to the unit and household record, so emission reductions can be claimed once and traced back to the source.</p>
+      </div>
+      <div class="service-card dist-step dist-wide">
+        <span class="service-num">05</span>
+        <h3>Technology maintenance</h3>
+        <p>Follow-up visits, repairs, replacements and usage checks that keep units in service and keep ongoing usage data ready for MRV and reporting.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="climate-impact">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">WHY CLIMATE DATA MATTERS</span>
+      <h2>From climate claims to climate evidence</h2>
+      <p>Climate projects are only as credible as the evidence behind their impact. We connect digital data, field verification and practical research so decision-makers can see what is happening on the ground.</p>
+    </div>
+    <div class="proof-grid">
+      <div class="proof-card">
+        <h3>01 · Measure what matters</h3>
+        <p>Design practical monitoring systems around energy use, technology adoption, household behavior, emissions and other project indicators.</p>
+      </div>
+      <div class="proof-card">
+        <h3>02 · Make data audit-ready</h3>
+        <p>Structure collection, validation and reporting workflows so field evidence can move cleanly into carbon, donor and management reporting.</p>
+      </div>
+      <div class="proof-card">
+        <h3>03 · Understand the people behind the data</h3>
+        <p>Combine quantitative monitoring with household research, surveys and qualitative insights to explain adoption and real-world outcomes.</p>
+      </div>
+      <div class="proof-card">
+        <h3>04 · Build for scale</h3>
+        <p>Replace fragmented spreadsheets and disconnected field processes with repeatable digital workflows, dashboards and operational intelligence.</p>
+      </div>
+    </div>
+    <div class="metric-band">
+      <div class="metric"><strong>MRV</strong> Measurement · Reporting · Verification</div>
+      <div class="metric"><strong>DATA</strong> Collection · QA · Analytics</div>
+      <div class="metric"><strong>FIELD</strong> Research · Testing · Ground-truthing</div>
+    </div>
+  </div>
+</section>
+
+<section id="sectors" style="background:var(--bg-2);">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">SECTORS WE SERVE</span>
+      <h2>Built for real-world climate solutions</h2>
+    </div>
+    <div class="sector-strip">
+      <div class="sector-item"><span class="tag">Clean cooking</span><h3>Biomass &amp; electric cookstoves</h3><p>Adoption research and performance testing across product lines and fuel types.</p></div>
+      <div class="sector-item"><span class="tag">Biomass fuel systems</span><h3>Fuel &amp; pellet monitoring</h3><p>Consumption tracking and stove-stacking behavior in biomass-dependent households.</p></div>
+      <div class="sector-item"><span class="tag">Solar energy</span><h3>Off-grid deployment</h3><p>Access verification and adoption studies in underserved, off-grid communities.</p></div>
+      <div class="sector-item"><span class="tag">Energy monitoring</span><h3>Household-level MRV</h3><p>Digital and field-based monitoring built for carbon credit and donor reporting.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="testing" class="testing-section">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">FIELD TESTING CAPABILITY</span>
+      <h2>Field evidence. Technical rigor. Climate credibility.</h2>
+      <p>We don't operate an in-house lab — we operate a lab <em>network</em>. Partner institutions carry the equipment; we carry the field logistics, household access, and reporting. Full partner credentials are shared with clients for verification during scoping.</p>
+    </div>
+    <div class="table-scroll">
+    <table class="test-table">
+      <caption class="sr-only">Field testing protocols with their standard, emissions capability and unit basis</caption>
+      <thead><tr><th>Protocol</th><th>Standard</th><th>Emissions</th><th>Basis</th></tr></thead>
+      <tbody>
+        <tr><td class="method">Water Boiling Test</td><td>IWA / ISO</td><td class="check">✓ available</td><td>Per test</td></tr>
+        <tr><td class="method">Controlled Cooking Test</td><td>IWA / ISO</td><td class="check">✓ available</td><td>Per cook (3 baseline + 3 prototype)</td></tr>
+        <tr><td class="method">Kitchen Performance Test</td><td>Multi-day household</td><td class="check">✓ sensor-equipped</td><td>Per household</td></tr>
+        <tr><td class="method">Focus Group Discussion</td><td>Qualitative</td><td>—</td><td>Per session, 10 participants / 3 hrs</td></tr>
+        <tr><td class="method">Market Testing Survey</td><td>Retail / distribution</td><td>—</td><td>Per store surveyed</td></tr>
+        <tr><td class="method">Local Stakeholder Consultation (LSC)</td><td>Carbon programme requirement</td><td>—</td><td>Per consultation</td></tr>
+        <tr><td class="method">Local expert</td><td>In-country advisory &amp; field support</td><td>—</td><td>Per engagement</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="reach-grid">
+      <div>
+        <h3 style="font-size:16px; margin-bottom:16px;">Community reach</h3>
+        <div class="ring-diagram">
+          <svg viewBox="0 0 300 300" width="270" height="270" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram of urban, peri-urban and rural research coverage">
+            <circle cx="150" cy="150" r="130" fill="none" stroke="#DCE6DE" stroke-width="1"/>
+            <circle cx="150" cy="150" r="90" fill="none" stroke="#DCE6DE" stroke-width="1"/>
+            <circle cx="150" cy="150" r="50" fill="#159A56" opacity="0.9"/>
+            <circle cx="150" cy="150" r="90" fill="none" stroke="#087A43" stroke-width="10" stroke-dasharray="4 6" opacity="0.55"/>
+            <circle cx="150" cy="150" r="130" fill="none" stroke="#8FC93A" stroke-width="10" stroke-dasharray="3 7" opacity="0.6"/>
+            <text x="150" y="154" text-anchor="middle" fill="#FFFFFF" font-family="IBM Plex Mono, monospace" font-size="12">URBAN</text>
+            <text x="150" y="84" text-anchor="middle" fill="#087A43" font-family="IBM Plex Mono, monospace" font-size="11">PERI-URBAN</text>
+            <text x="150" y="44" text-anchor="middle" fill="#6E9C22" font-family="IBM Plex Mono, monospace" font-size="11">RURAL</text>
+          </svg>
+        </div>
+        <div class="ring-legend">
+          <div class="row"><span class="swatch" style="background:var(--green)"></span>Urban — dense sampling, retail &amp; distribution access</div>
+          <div class="row"><span class="swatch" style="background:var(--blue)"></span>Peri-urban — grid and off-grid household mix</div>
+          <div class="row"><span class="swatch" style="background:var(--lime)"></span>Rural — biomass-dependent, off-grid households</div>
+        </div>
+      </div>
+
+      <div>
+        <h3 style="font-size:16px; margin-bottom:16px;">Primary cooking fuels by area</h3>
+        <div class="fuel-row">
+          <div class="top"><span>LPG</span><span class="mono">Urban / peri-urban</span></div>
+          <div class="track"><div class="fill" style="width:78%; background:var(--green);"></div></div>
+        </div>
+        <div class="fuel-row">
+          <div class="top"><span>Biomass (wood &amp; charcoal)</span><span class="mono">Rural / off-grid</span></div>
+          <div class="track"><div class="fill" style="width:88%; background:var(--lime);"></div></div>
+        </div>
+        <div class="fuel-row">
+          <div class="top"><span>Ethanol</span><span class="mono">Urban / peri-urban</span></div>
+          <div class="track"><div class="fill" style="width:34%; background:var(--blue);"></div></div>
+        </div>
+        <div class="fuel-row">
+          <div class="top"><span>Electric</span><span class="mono">Grid-connected areas</span></div>
+          <div class="track"><div class="fill" style="width:41%; background:var(--green); opacity:0.6;"></div></div>
+        </div>
+
+        <div class="callout">
+          <strong>62.7%</strong> of rural Kenyan households remain unconnected to the national electricity grid, versus just <strong>9%</strong> in urban areas — county-level access ranges from under 10% (Turkana) to over 95% (Nairobi, Kiambu). We lead ground-truthed, community-specific verification studies rather than relying on national estimates alone.
+          <div class="src">Source: Kenya National Bureau of Statistics (2024), via Business Daily Africa, Jan 2025</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="track-record">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">TRACK RECORD</span>
+      <h2>Evidence built from the field</h2>
+      <p>Ongoing applied research with a leading East African cookstove manufacturer, running since 2019.</p>
+    </div>
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="tl-year">2019 — PRESENT</div>
+        <h3>Kitchen Performance Testing — biomass &amp; electric cookstoves</h3>
+        <p>Multi-day household monitoring across 300–500 households per cycle in urban and peri-urban Kenya, tracking fuel consumption, stove-stacking, and satisfaction against traditional stove baselines. Supports ongoing carbon credit MRV documentation.</p>
+      </div>
+      <div class="tl-item">
+        <div class="tl-year">2019 — PRESENT</div>
+        <h3>Customer surveys &amp; focus groups — multi-product line</h3>
+        <p>Quantitative and qualitative market research across 200–400 households per cycle, spanning wood, charcoal, and electric product lines. Findings shaped go-to-market strategy and product refinement.</p>
+      </div>
+      <div class="tl-item">
+        <div class="tl-year">2019 — PRESENT</div>
+        <h3>Controlled Cooking Tests with emissions monitoring</h3>
+        <p>Lab-partnered CCTs measuring fuel use, cook time, and PM2.5/CO emissions against baseline, consistent with IWA/ISO protocols and independently reported emissions reductions exceeding 60%.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="ecosystem" style="background:var(--bg-2);">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">THE ECOSYSTEM WE WORK WITHIN</span>
+      <h2>Aligned with the sector's testing &amp; standards community</h2>
+      <p>Our field testing work follows the same IWA/ISO protocols and standards infrastructure used across the clean cooking and off-grid energy sector.</p>
+    </div>
+    <div class="peer-row">
+      <div class="peer-chip">IWA / ISO Harmonized Test Protocols</div>
+      <div class="peer-chip">CLASP — appliance &amp; equipment standards</div>
+      <div class="peer-chip">Verasol — off-grid solar quality standards</div>
+      <div class="peer-chip">Clean Cooking Alliance testing network</div>
+    </div>
+  </div>
+</section>
+
+<section id="logistics">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">HOSTING VISITING RESEARCHERS</span>
+      <h2>Your East African climate field base</h2>
+      <p>Our office is built around receiving visiting research teams, not just running our own field programs.</p>
+    </div>
+    <div class="logi-grid">
+      <div class="logi-card"><div class="big">Airport → office</div><div class="cap">Drive time from Jomo Kenyatta International Airport to our office, depending on traffic.</div></div>
+      <div class="logi-card"><div class="big">Hotels → guesthouses</div><div class="cap">Accommodation matched to budget and stay length, including field-adjacent options for extended visits.</div></div>
+      <div class="logi-card"><div class="big">Full logistics</div><div class="cap">Local transport, workspace access, field-visit scheduling, and introductions to our local teams.</div></div>
+    </div>
+  </div>
+</section>
+
+<section id="approach" style="background:var(--bg-2);">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">HOW WE WORK</span>
+      <h2>From project design to field evidence</h2>
+      <p>Our approach connects strategy, measurement and execution so clients can move confidently from an initial climate question to a usable result.</p>
+    </div>
+    <div class="service-grid">
+      <div class="service-card">
+        <span class="service-num">01</span>
+        <h3>Define</h3>
+        <p>Clarify the climate outcome, monitoring requirements, target population and evidence needed.</p>
+      </div>
+      <div class="service-card">
+        <span class="service-num">02</span>
+        <h3>Measure</h3>
+        <p>Deploy field research, digital collection, sensors and testing protocols appropriate to the project.</p>
+      </div>
+      <div class="service-card">
+        <span class="service-num">03</span>
+        <h3>Validate</h3>
+        <p>Apply data-quality controls, field verification and structured analysis to strengthen the evidence base.</p>
+      </div>
+      <div class="service-card">
+        <span class="service-num">04</span>
+        <h3>Report</h3>
+        <p>Convert validated information into clear reports, dashboards, MRV outputs and management insights.</p>
+      </div>
+      <div class="service-card">
+        <span class="service-num">05</span>
+        <h3>Improve</h3>
+        <p>Use findings to improve products, programs, deployment strategies and ongoing monitoring systems.</p>
+      </div>
+      <div class="service-card">
+        <span class="service-num">06</span>
+        <h3>Scale</h3>
+        <p>Build repeatable processes that can support larger samples, additional markets and long-term programs.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="pricing" style="background:var(--bg-2);">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">INDICATIVE PRICING</span>
+      <h2>Transparent pricing in USD, localized for your market</h2>
+      <p>Our standard reference pricing is shown in US dollars. Select your country to see an indicative local-currency equivalent.</p>
+    </div>
+
+    <div class="currency-panel">
+      <div class="currency-controls">
+        <div class="currency-control">
+          <label for="countrySelector">Country / market</label>
+          <select id="countrySelector" aria-label="Select country or market">
+            <option value="KE">🇰🇪 Kenya — KES</option>
+            <option value="TZ">🇹🇿 Tanzania — TZS</option>
+            <option value="UG">🇺🇬 Uganda — UGX</option>
+            <option value="RW">🇷🇼 Rwanda — RWF</option>
+            <option value="GH">🇬🇭 Ghana — GHS</option>
+            <option value="NG">🇳🇬 Nigeria — NGN</option>
+            <option value="ZA">🇿🇦 South Africa — ZAR</option>
+            <option value="ZM">🇿🇲 Zambia — ZMW</option>
+            <option value="MW">🇲🇼 Malawi — MWK</option>
+            <option value="ET">🇪🇹 Ethiopia — ETB</option>
+            <option value="MZ">🇲🇿 Mozambique — MZN</option>
+            <option value="US">🇺🇸 United States — USD</option>
+          </select>
+        </div>
+        <div class="currency-summary" aria-live="polite">
+          <span>Reference currency</span>
+          <strong>USD</strong>
+          <small id="rateDisplay">Indicative rate: 1 USD = 129.62 KES</small>
+        </div>
+      </div>
+
+      <div class="currency-note">
+        <strong>Local-market estimate:</strong> Prices below are converted from the USD reference price using an indicative exchange rate.
+        Final quotations are confirmed in the local market and may vary due to exchange-rate movements, taxes, logistics, local partner costs and project scope.
+      </div>
+    </div>
+
+    <div class="table-scroll">
+    <table class="price-table" id="pricingTable">
+      <caption class="sr-only">Indicative prices per activity and unit, in USD with a local-currency estimate</caption>
+      <thead>
+        <tr>
+          <th>Activity</th>
+          <th>Unit</th>
+          <th>USD reference</th>
+          <th id="localCurrencyHeader">Kenya — KES</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr data-min="700" data-max="1500"><td>Water Boiling Test — with emissions</td><td>Per test</td><td class="amt">$5.40–$11.57</td><td class="local-amt">KES 700–1,500</td></tr>
+        <tr data-min="700" data-max="1500"><td>Water Boiling Test — without emissions</td><td>Per test</td><td class="amt">$5.40–$11.57</td><td class="local-amt">KES 700–1,500</td></tr>
+        <tr data-min="700" data-max="1500"><td>Controlled Cooking Test — with emissions</td><td>Per cook (6 total)</td><td class="amt">$5.40–$11.57</td><td class="local-amt">KES 700–1,500</td></tr>
+        <tr data-min="700" data-max="1500"><td>Controlled Cooking Test — without emissions</td><td>Per cook (6 total)</td><td class="amt">$5.40–$11.57</td><td class="local-amt">KES 700–1,500</td></tr>
+        <tr data-min="700" data-max="1500"><td>Kitchen Performance Test — with sensors</td><td>Per household</td><td class="amt">$5.40–$11.57</td><td class="local-amt">KES 700–1,500</td></tr>
+        <tr data-min="700" data-max="1500"><td>Kitchen Performance Test — without sensors</td><td>Per household</td><td class="amt">$5.40–$11.57</td><td class="local-amt">KES 700–1,500</td></tr>
+        <tr data-min="1500" data-max="3000"><td>Focus Group Discussion (10 participants, 3 hrs, all-inclusive)</td><td>Per session</td><td class="amt">$11.57–$23.15</td><td class="local-amt">KES 1,500–3,000</td></tr>
+        <tr data-min="700" data-max="1500"><td>Market Testing Survey (20 stores)</td><td>Per store</td><td class="amt">$5.40–$11.57</td><td class="local-amt">KES 700–1,500</td></tr>
+        <tr><td>Local Stakeholder Consultation (LSC)</td><td>Per consultation</td><td class="amt">On request</td><td class="local-amt">On request</td></tr>
+        <tr><td>Local expert</td><td>Per engagement</td><td class="amt">On request</td><td class="local-amt">On request</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="pricing-disclaimer">
+      <strong>Pricing disclaimer:</strong> USD amounts are the reference basis. Local-currency figures are indicative conversions only and are not fixed quotations.
+      Exchange rates can change, and actual pricing may differ because of taxes, withholding, transport, accommodation, field conditions, partner fees, sample size and final scope.
+      A formal proposal will confirm the applicable currency, rate, inclusions and final price.
+    </div>
+  </div>
+</section>
+
+<section id="tech">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">OUR TECH</span>
+      <h2>The kit, the data layer and the lab network behind every study</h2>
+      <p>We do not run an in-house laboratory. Partner institutions carry the analytical equipment; we bring the field kit, the household access and the data pipeline that turns measurements into audit-ready records.</p>
+    </div>
+    <div class="service-grid">
+      <div class="service-card" id="tech-field">
+        <span class="service-num">01</span>
+        <h3>Field measurement kit</h3>
+        <p>Sensor-equipped Kitchen Performance Tests, controlled cooking tests with PM2.5 and CO monitoring, and GPS-tagged household records — measured in the home, not estimated from a desk.</p>
+        <ul>
+          <li>Multi-day sensor monitoring</li>
+          <li>PM2.5 / CO emissions capture</li>
+          <li>GPS-tagged household records</li>
+        </ul>
+      </div>
+      <div class="service-card" id="tech-data">
+        <span class="service-num">02</span>
+        <h3>Data collection &amp; QA</h3>
+        <p>Mobile data collection, validation rules and quality checks that keep every record traceable back to the household, device and field visit it came from.</p>
+        <ul>
+          <li>Mobile data collection forms</li>
+          <li>Validation &amp; QA checks</li>
+          <li>Traceable field records</li>
+        </ul>
+      </div>
+      <div class="service-card" id="tech-report">
+        <span class="service-num">03</span>
+        <h3>Reporting &amp; dashboards</h3>
+        <p>Dashboards, reporting automation and export-ready datasets so field evidence moves cleanly into carbon, donor and management reporting.</p>
+        <ul>
+          <li>Dashboards &amp; reporting automation</li>
+          <li>Audit-ready datasets</li>
+          <li>MRV-ready outputs</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout" id="tech-lab">
+      <strong>Protocols run with partner labs:</strong> Water Boiling Test, Controlled Cooking Test and Kitchen Performance Test follow IWA/ISO harmonised methods. Partner credentials are shared with clients for verification during scoping.
+      <div class="src">Lab network · IWA / ISO harmonised protocols · Field logistics by Carbon Analytica</div>
+    </div>
+  </div>
+</section>
+
+<section id="contact" class="contact-section">
+  <div class="wrap">
+    <div class="contact-grid">
+      <div>
+        <span class="eyebrow" style="color:var(--lime);">GET IN TOUCH</span>
+        <h2>Start a climate impact project</h2>
+        <p style="color:rgba(255,255,255,0.72); margin-top:14px; font-size:16px;">Tell us what you are trying to measure, validate or build. We will help define the scope, field requirements, timeline and delivery approach.</p>
+         <div class="contact-cta">● PROJECT DISCOVERY · PROPOSALS · PARTNERSHIPS</div>
+        <div class="contact-info">
+          <div class="row"><span class="k">EMAIL</span><span class="v"><a href="mailto:hello@carbonanalytica.com">hello@carbonanalytica.com</a></span></div>
+          <div class="row"><span class="k">PHONE</span><span class="v"><a href="tel:+254756112633">+254 756 112 633</a></span></div>
+          <div class="row"><span class="k">OFFICE</span><span class="v">Nairobi, Kenya</span></div>
+        </div>
+      </div>
+      <div>
+        <form id="proposalForm" action="mailto:hello@carbonanalytica.com" method="post" enctype="text/plain" aria-labelledby="proposalFormTitle">
+          <div class="form-title" id="proposalFormTitle">Tell us about your climate project</div>
+          <div class="field">
+            <label for="name">Name <span aria-hidden="true">*</span></label>
+            <input type="text" id="name" name="name" autocomplete="name" required>
+          </div>
+          <div class="field">
+            <label for="org">Organization <span aria-hidden="true">*</span></label>
+            <input type="text" id="org" name="organization" autocomplete="organization" required>
+          </div>
+          <div class="field">
+            <label for="email">Email <span aria-hidden="true">*</span></label>
+            <input type="email" id="email" name="email" autocomplete="email" required>
+          </div>
+          <div class="field">
+            <label for="service">Service of interest <span aria-hidden="true">*</span></label>
+            <select id="service" name="service" required>
+              <option>Climate field research &amp; verification</option>
+              <option>Carbon MRV &amp; climate impact</option>
+              <option>Climate data &amp; digital systems</option>
+              <option>Technology distribution</option>
+              <option>Not sure yet</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="message">Project details <span aria-hidden="true">*</span></label>
+            <textarea id="message" name="project_details" required placeholder="What are you looking to test, monitor, or build?"></textarea>
+          </div>
+          <button type="submit" class="submit-btn">Send request</button>
+          <div class="form-note">Opens your email client with these details pre-filled — nothing is sent automatically.</div>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap footwrap">
+    <div><strong>Carbon Analytica</strong> · Climate Data &amp; Field Intelligence · Nairobi, Kenya</div>
+    <div>Carbon MRV &amp; climate impact · Data analytics · Climate field research &amp; verification · Technology distribution</div>
+  </div>
+</footer>
+
+<script>
+  /* Guarded: if this script runs before the form exists, the mailto fallback still works. */
+  var proposalForm = document.getElementById('proposalForm');
+  if (proposalForm) proposalForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    var name = document.getElementById('name').value;
+    var org = document.getElementById('org').value;
+    var email = document.getElementById('email').value;
+    var service = document.getElementById('service').value;
+    var message = document.getElementById('message').value;
+    var subject = encodeURIComponent('Proposal request — ' + (org || name));
+    var body = encodeURIComponent(
+      'Name: ' + name + '\n' +
+      'Organization: ' + org + '\n' +
+      'Email: ' + email + '\n' +
+      'Service of interest: ' + service + '\n\n' +
+      'Project details:\n' + message
+    );
+    window.location.href = 'mailto:hello@carbonanalytica.com?subject=' + subject + '&body=' + body;
+  });
+
+  document.querySelectorAll('section .section-head, .service-card, .proof-card, .impact-card, .logi-card, .timeline .tl-item, .metric-band')
+    .forEach(function(el){ el.classList.add('reveal'); });
+
+  if ('IntersectionObserver' in window) {
+    var observer = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if(entry.isIntersecting){
+          entry.target.classList.add('is-visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, {threshold:0.08});
+    document.querySelectorAll('.reveal').forEach(function(el){ observer.observe(el); });
+  } else {
+    document.querySelectorAll('.reveal').forEach(function(el){ el.classList.add('is-visible'); });
+  }
+
+  /* Local-market currency conversion.
+     Rates are indicative reference rates and should be refreshed before formal quotations. */
+  (function(){
+    var currencyData = {
+      KE:{name:'Kenya', code:'KES', symbol:'KES', rate:129.62},
+      TZ:{name:'Tanzania', code:'TZS', symbol:'TZS', rate:2500},
+      UG:{name:'Uganda', code:'UGX', symbol:'UGX', rate:3500},
+      RW:{name:'Rwanda', code:'RWF', symbol:'RWF', rate:1450},
+      GH:{name:'Ghana', code:'GHS', symbol:'GHS', rate:12.5},
+      NG:{name:'Nigeria', code:'NGN', symbol:'₦', rate:1500},
+      ZA:{name:'South Africa', code:'ZAR', symbol:'R', rate:17.2},
+      ZM:{name:'Zambia', code:'ZMW', symbol:'ZMW', rate:24},
+      MW:{name:'Malawi', code:'MWK', symbol:'MWK', rate:1750},
+      ET:{name:'Ethiopia', code:'ETB', symbol:'ETB', rate:145},
+      MZ:{name:'Mozambique', code:'MZN', symbol:'MZN', rate:64},
+      US:{name:'United States', code:'USD', symbol:'$', rate:1}
+    };
+
+    var selector = document.getElementById('countrySelector');
+    var header = document.getElementById('localCurrencyHeader');
+    var rateDisplay = document.getElementById('rateDisplay');
+
+    function money(value, code){
+      if(code === 'NGN') return '₦' + Math.round(value).toLocaleString('en-US');
+      if(code === 'ZAR') return 'R' + Math.round(value).toLocaleString('en-US');
+      if(code === 'USD') return '$' + value.toFixed(2);
+      return code + ' ' + Math.round(value).toLocaleString('en-US');
+    }
+
+    function updatePricing(){
+      var market = currencyData[selector.value] || currencyData.KE;
+      header.textContent = market.name + ' — ' + market.code;
+      rateDisplay.textContent = 'Indicative rate: 1 USD = ' + market.rate.toLocaleString('en-US', {
+        maximumFractionDigits: 2
+      }) + ' ' + market.code;
+
+      document.querySelectorAll('#pricingTable tbody tr').forEach(function(row){
+        if(!row.hasAttribute('data-min')) return; /* "On request" rows have no fixed range */
+        var min = parseFloat(row.getAttribute('data-min'));
+        var max = parseFloat(row.getAttribute('data-max'));
+        row.querySelector('.local-amt').textContent =
+          money(min * market.rate, market.code) + '–' + money(max * market.rate, market.code);
+      });
+    }
+
+    if(selector){
+      selector.addEventListener('change', updatePricing);
+      updatePricing();
+    }
+  })();
+
+  /* "Our Tech" dropdown: click/tap to open; click outside or press Escape to close. */
+  (function(){
+    var drop = document.getElementById('techDrop');
+    if (!drop) return;
+    var btn = document.getElementById('techDropBtn');
+    var menu = document.getElementById('techDropMenu');
+
+    function setOpen(open){
+      if (open) { drop.classList.add('is-open'); } else { drop.classList.remove('is-open'); }
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    btn.addEventListener('click', function(e){
+      e.preventDefault();
+      setOpen(!drop.classList.contains('is-open'));
+    });
+
+    document.addEventListener('click', function(e){
+      if (!drop.contains(e.target)) setOpen(false);
+    });
+
+    document.addEventListener('keydown', function(e){
+      if ((e.key === 'Escape' || e.key === 'Esc') && drop.classList.contains('is-open')) {
+        setOpen(false);
+        btn.focus();
+      }
+    });
+
+    menu.addEventListener('click', function(e){
+      if (e.target.closest('a')) setOpen(false);
+    });
+  })();
+</script>
+
+</body>
+</html>

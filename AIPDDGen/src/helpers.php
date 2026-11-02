@@ -104,6 +104,7 @@ if (!function_exists('form_error')) {
             'invalid_year' => t('validation.invalid_year'),
             'invalid_url' => t('validation.invalid_url'),
             'invalid_phone' => t('validation.invalid_phone'),
+            'invalid_code' => t('validation.invalid_code'),
             default => t('error.validation_error'),
         };
     }
@@ -138,6 +139,24 @@ if (!function_exists('role_key')) {
             'editor' => 'team.role_editor',
             default => 'team.role_viewer',
         };
+    }
+}
+
+if (!function_exists('mask_email')) {
+    /** Partially hide an address for screens that mention it ("a***@example.com"). */
+    function mask_email(string $email): string
+    {
+        $email = trim($email);
+        $at = strrpos($email, '@');
+        if ($at === false || $at === 0) {
+            return $email;
+        }
+
+        $local = substr($email, 0, $at);
+        $domain = substr($email, $at);
+        $visible = mb_substr($local, 0, 1);
+
+        return $visible . str_repeat('*', max(2, mb_strlen($local) - 1)) . $domain;
     }
 }
 

@@ -8,6 +8,7 @@ use App\AppError;
 use App\Auth;
 use App\Http;
 use App\I18n;
+use App\Services\AuthService;
 use App\Services\TaskCenterService;
 use App\View;
 
@@ -19,20 +20,6 @@ use App\View;
  */
 final class AdminTaskController extends Controller
 {
-    public function dashboard(array $params): never
-    {
-        $user = $this->requireUser();
-        TaskCenterService::assertStaff((string) $user['id']);
-
-        $data = TaskCenterService::dashboard((string) $user['id']);
-
-        View::render('pages/admin/dashboard', [
-            'user' => $user,
-            'dashboard' => $data,
-            'taskBadge' => $data['summary']['breached'],
-        ], 'layout_admin');
-    }
-
     public function tasks(array $params): never
     {
         $user = $this->requireUser();
@@ -92,6 +79,24 @@ final class AdminTaskController extends Controller
         }
 
         Http::redirect($this->returnPath());
+    }
+
+    /**
+     * Toggle the email second factor for the signed-in staff account.
+     *
+     * Off by default; enabling it means the next sign-in asks for a 6-digit
+     * emailed code. Only this account is affected, never tenant users.
+     */
+    public function toggleOtp(array $params): never
+    {
+        $user = $this->requireUser();
+        TaskCenterService::assertStaff((string) $user['id']);
+
+        $enabled = (int) ($user['otp_enabled'] ?? 0) === 1;
+        AuthService::setOtpEnabled((string) $user['id'], !$enabled);
+
+        $this->flash('success', $enabled ? t('flash.otp_disabled') : t('flash.otp_enabled'));
+        Http::redirect('/admin#security');
     }
 
     /** Only same-console return paths are honoured (no open redirects). */

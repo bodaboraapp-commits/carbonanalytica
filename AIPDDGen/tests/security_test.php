@@ -49,17 +49,18 @@ return [
         assert_same('en', $_SESSION['locale']);
     },
 
-    'never stores a plaintext verification token' => static function (): void {
-        make_user('hashed@example.com');
+    'never stores a plaintext one-time code' => static function (): void {
+        $created = make_user('hashed@example.com');
+        AuthService::startOtpChallenge($created['user'], 'signup');
 
-        $email = latest_email('hashed@example.com', 'email_verification');
-        $token = token_from_email((string) $email['body_text'], '/verify-email');
-        assert_not_null($token);
+        $code = latest_otp_code('hashed@example.com');
+        assert_not_null($code);
 
-        $rows = Db::select('SELECT token_hash FROM verification_tokens');
-        assert_count(1, $rows);
-        assert_same(Tokens::hash($token), (string) $rows[0]['token_hash']);
-        assert_true(strlen((string) $rows[0]['token_hash']) === 64);
+        $row = Db::selectOne('SELECT * FROM otp_codes WHERE user_id = ? LIMIT 1', [(string) $created['user']['id']]);
+        assert_not_null($row);
+        assert_same(Tokens::hash((string) $code), (string) $row['code_hash']);
+        assert_true(strlen((string) $row['code_hash']) === 64);
+        assert_true($row['code_hash'] !== $code);
     },
 
     'never puts the password in an email' => static function (): void {

@@ -9,16 +9,18 @@ use App\Repositories\UserRepository;
 use App\Services\AuthService;
 
 return [
-    'signs in with the correct password and audits the event' => static function (): void {
+    'checks the password and audits the first factor' => static function (): void {
         $account = make_user('signin@example.com');
 
         $user = AuthService::signIn('signin@example.com', $account['password']);
 
         assert_same((string) $account['user']['id'], (string) $user['id']);
-        assert_same(1, count_rows('audit_logs', "action = 'auth.signin'"));
+        assert_same(1, count_rows('audit_logs', "action = 'auth.signin.password_verified'"));
 
+        // A password alone never signs anyone in and never touches last_seen.
         $fresh = UserRepository::findById((string) $user['id']);
-        assert_not_null($fresh['last_seen_at']);
+        assert_null($fresh['last_seen_at']);
+        assert_same(0, count_rows('audit_logs', "action = 'auth.signin'"));
     },
 
     'accepts the email in any case at sign-in' => static function (): void {

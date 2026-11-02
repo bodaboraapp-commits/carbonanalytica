@@ -21,7 +21,6 @@ $siteNext = $sitePath . ($siteQuery !== '' ? '?' . $siteQuery : '');
 $siteLocale = I18n::locale();
 $siteTitle = isset($title) && $title !== '' ? $title . ' · ' . t('app.name') : t('app.name') . ' — ' . t('app.tagline');
 $flashes = Session::takeFlashes();
-$onboarding = $siteUser !== null && $siteUser['email_verified_at'] === null;
 
 if (PHP_SAPI !== 'cli') {
     /* Resource timing is not needed; keep the page free of blocking requests. */
@@ -85,16 +84,6 @@ if (PHP_SAPI !== 'cli') {
 <main id="main" class="site-main">
     <div class="container">
         <?php \App\View::partial('partials/flash', ['flashes' => $flashes]); ?>
-
-        <?php if ($onboarding && $sitePath !== '/verify-email'): ?>
-            <div class="notice" role="status">
-                <?= e(t('auth.banner_unverified')) ?>
-                <form class="inline-form" method="post" action="<?= e(url('/verify-email/resend')) ?>">
-                    <?= csrf_field() ?>
-                    <button class="btn btn--ghost btn--sm" type="submit"><?= e(t('auth.resend_link')) ?></button>
-                </form>
-            </div>
-        <?php endif; ?>
 
         <?= $content ?>
     </div>

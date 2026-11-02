@@ -27,25 +27,33 @@ return [
         assert_same(1, count_rows('audit_logs', "action = 'auth.signup'"));
     },
 
-    'queues a verification email with a hashed token' => static function (): void {
+    'queues a one-time code email with a hashed code and no session' => static function (): void {
         $created = AuthService::signUp('Kofi Mensah', 'kofi@example.com', 'correct horse battery staple', 'fr');
+        $userId = (string) $created['user']['id'];
 
         assert_same('fr', $created['user']['locale']);
+        assert_null($created['user']['email_verified_at'], 'sign-up must not verify the address by itself');
 
-        $email = latest_email('kofi@example.com', 'email_verification');
+        // The controller starts the challenge right after creating the account.
+        AuthService::startOtpChallenge($created['user'], 'signup');
+
+        $email = latest_email('kofi@example.com', 'otp');
         assert_not_null($email);
-        assert_contains('Confirmez', (string) $email['subject']);
+        assert_contains('code de vérification', (string) $email['subject']);
 
-        $token = token_from_email((string) $email['body_text'], '/verify-email');
-        assert_not_null($token);
+        $code = latest_otp_code('kofi@example.com');
+        assert_not_null($code);
+        assert_true((bool) preg_match('/^\d{6}$/', (string) $code), 'the email must contain a six-digit code');
 
         $stored = Db::selectOne(
-            "SELECT * FROM verification_tokens WHERE user_id = ? AND type = 'email_verification' LIMIT 1",
-            [(string) $created['user']['id']],
+            "SELECT * FROM otp_codes WHERE user_id = ? AND purpose = 'signup' LIMIT 1",
+            [$userId],
         );
         assert_not_null($stored);
-        assert_true($stored['token_hash'] !== $token, 'the plaintext token must not be stored');
-        assert_same(Tokens::hash($token), (string) $stored['token_hash']);
+        assert_true($stored['code_hash'] !== $code, 'the plaintext code must not be stored');
+        assert_same(Tokens::hash((string) $code), (string) $stored['code_hash']);
+        assert_same(0, (int) $stored['attempts']);
+        assert_null($stored['consumed_at']);
     },
 
     'rejects a duplicate email regardless of case' => static function (): void {

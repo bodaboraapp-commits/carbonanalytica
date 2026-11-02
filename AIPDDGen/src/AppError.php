@@ -72,6 +72,21 @@ final class AppError extends \RuntimeException
         return new self('token_expired', 400, 'This link has expired. Request a new one.');
     }
 
+    public static function invalidOtp(): self
+    {
+        return new self('otp_invalid', 422, 'That code is not valid.');
+    }
+
+    public static function expiredOtp(): self
+    {
+        return new self('otp_expired', 422, 'That code has expired. Request a new one.');
+    }
+
+    public static function otpAttemptsExceeded(): self
+    {
+        return new self('otp_too_many_attempts', 429, 'Too many incorrect codes. Request a new one.');
+    }
+
     public static function invalidRole(): self
     {
         return new self('invalid_role', 422, 'That role cannot be assigned.');
