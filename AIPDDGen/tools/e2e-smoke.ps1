@@ -221,8 +221,10 @@ Check 'dashboard loads for signed-in owner' ($dashboard.Status -eq 200)
 Check 'dashboard shows empty state' ($dashboard.Content -match 'No projects yet')
 $ownerSidebar = [regex]::Match($dashboard.Content, '(?s)<aside class="tenant-sidebar".*?</aside>').Value
 Check 'workspace sidebar renders for the signed-in owner' ($ownerSidebar -match 'tenant-nav__link') "sidebar_length=$($ownerSidebar.Length)"
-Check 'workspace sidebar lists Projects, Team and Organization' ($ownerSidebar -match 'Projects' -and $ownerSidebar -match 'Team' -and $ownerSidebar -match 'Organization')
-Check 'workspace sidebar marks the active item' ($ownerSidebar -match 'aria-current="page"')
+Check 'workspace sidebar has four links for the owner' (([regex]::Matches($ownerSidebar, 'class="tenant-nav__link')).Count -eq 4) "links=$(([regex]::Matches($ownerSidebar, 'class="tenant-nav__link')).Count)"
+Check 'workspace sidebar lists Dashboard, Projects, Team and Organization' ($ownerSidebar -match 'Dashboard' -and $ownerSidebar -match 'Projects' -and $ownerSidebar -match 'Team' -and $ownerSidebar -match 'Organization')
+Check 'workspace sidebar links Projects to the dashboard projects anchor' ($ownerSidebar -match 'href="[^"]*/dashboard#projects"')
+Check 'workspace sidebar marks Dashboard active on the dashboard' ($ownerSidebar -match 'href="[^"]*/dashboard"[^>]*aria-current="page"')
 Check 'workspace sidebar has the responsive drawer toggle' ($ownerSidebar -match 'tenant-nav-toggle')
 Check 'tenant owner does not see the platform Action Center shortcut' ($ownerSidebar -notmatch 'Action Center')
 
@@ -470,6 +472,7 @@ Check 'security panel shows two-factor on' ($staffAfterToggle.Content -match '(?
 
 $staffDashboard = Invoke-Request '/dashboard' -Session $staff
 $staffSidebar = [regex]::Match($staffDashboard.Content, '(?s)<aside class="tenant-sidebar".*?</aside>').Value
+Check 'staff workspace sidebar has five links' (([regex]::Matches($staffSidebar, 'class="tenant-nav__link')).Count -eq 5) "links=$(([regex]::Matches($staffSidebar, 'class="tenant-nav__link')).Count)"
 Check 'staff workspace sidebar includes the Action Center shortcut' ($staffSidebar -match 'Action Center')
 $staffLogoutToken = Get-CsrfToken $staffDashboard.Content
 Invoke-Request '/logout' -Method POST -Session $staff -NoRedirect -Body @{ _csrf = $staffLogoutToken } | Out-Null

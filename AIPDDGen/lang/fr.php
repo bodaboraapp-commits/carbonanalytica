@@ -13,6 +13,7 @@ return [
     'app.skip_to_content' => 'Aller au contenu principal',
 
     // Navigation.
+    'nav.dashboard' => 'Tableau de bord',
     'nav.projects' => 'Projets',
     'nav.team' => 'Équipe',
     'nav.sign_in' => 'Se connecter',

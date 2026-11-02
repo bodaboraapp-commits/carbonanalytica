@@ -13,6 +13,7 @@ return [
     'app.skip_to_content' => 'Skip to main content',
 
     // Navigation.
+    'nav.dashboard' => 'Dashboard',
     'nav.projects' => 'Projects',
     'nav.team' => 'Team',
     'nav.sign_in' => 'Sign in',

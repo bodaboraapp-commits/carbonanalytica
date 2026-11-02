@@ -80,7 +80,10 @@ $siteIsStaff = $siteUser !== null && (int) ($siteUser['is_platform_admin'] ?? 0)
                 <span><?= e(t('nav.menu')) ?></span>
             </label>
             <nav class="tenant-nav" id="tenant-nav" aria-label="<?= e(t('nav.workspace_menu')) ?>">
-                <a class="tenant-nav__link" href="<?= e(url('/dashboard')) ?>" <?= is_current('/dashboard') || str_starts_with($sitePath, '/projects') ? 'aria-current="page"' : '' ?>>
+                <a class="tenant-nav__link" href="<?= e(url('/dashboard')) ?>" <?= $sitePath === '/dashboard' ? 'aria-current="page"' : '' ?>>
+                    <?= e(t('nav.dashboard')) ?>
+                </a>
+                <a class="tenant-nav__link" href="<?= e(url('/dashboard') . '#projects') ?>" <?= str_starts_with($sitePath, '/projects') ? 'aria-current="page"' : '' ?>>
                     <?= e(t('nav.projects')) ?>
                 </a>
                 <a class="tenant-nav__link" href="<?= e(url('/team')) ?>" <?= is_current('/team') ? 'aria-current="page"' : '' ?>>

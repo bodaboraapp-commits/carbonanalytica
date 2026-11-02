@@ -14,7 +14,7 @@ The previous staff "Action Center" design moved to the tenant dashboard; staff g
 
 ## Workspace navigation (signed-in tenant pages)
 
-Signed-in tenant pages share one layout with a **workspace side panel** next to the main column: **Projects** (`/dashboard`, active for `/dashboard` and `/projects/*`), **Team** (`/team`), **Organization** (`/onboarding`) and — platform admins only — **Action Center** (`/admin`, the console shortcut). The current page is marked with `aria-current="page"`; under 980px the panel collapses into a CSS-only drawer (no JavaScript, same checkbox pattern as the console) and the styles live in `public/assets/tenant-nav.css`. Guest pages keep the simple top navigation, and the platform console keeps its own `layout_admin.php`.
+Signed-in tenant pages share one layout with a **workspace side panel** next to the main column, in this order: **Dashboard** (`/dashboard`, active on the dashboard itself), **Projects** (`/dashboard#projects`, jumps to the dashboard's projects section and is active on `/projects/*`), **Team** (`/team`), **Organization** (`/onboarding`) and — platform admins only — **Action Center** (`/admin`, the console shortcut). The current page is marked with `aria-current="page"`; under 980px the panel collapses into a CSS-only drawer (no JavaScript, same checkbox pattern as the console) and the styles live in `public/assets/tenant-nav.css`. Guest pages keep the simple top navigation, and the platform console keeps its own `layout_admin.php`.
 
 ## Workspace dashboard (`/dashboard`)
 
