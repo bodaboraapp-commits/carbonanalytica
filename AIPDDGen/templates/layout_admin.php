@@ -39,6 +39,7 @@ $navIcon = static function (string $name): string {
         'users' => 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
         'templates' => 'M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
         'audit' => 'M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8M12 7v5l4 2',
+        'system' => 'M22 12h-4l-3 9L9 3l-3 9H2',
         'database' => 'M12 2C8 2 4 3 4 6s4 4 8 4 8-1 8-4-4-4-8-4zM4 6v6c0 3 4 4 8 4s8-1 8-4V6M4 12v6c0 3 4 4 8 4s8-1 8-4v-6',
         'workspace' => 'M3 10.5 12 3l9 7.5M5 9.5V21h14V9.5M9 21v-6h6v6',
         'external' => 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM2 12h20M12 2c2.5 3 2.5 17 0 20M12 2c-2.5 3-2.5 17 0 20',
@@ -150,6 +151,7 @@ $navLink = static function (string $icon, string $href, string $label, bool $act
 
             <div class="admin-nav-group">
                 <p class="admin-nav-group__title"><?= e(t('console.menu_system')) ?></p>
+                <?php $navLink('system', '/admin/system', t('console.nav_system_health'), $isActive('/admin/system')); ?>
                 <?php $navLink('database', '/admin/database', t('console.nav_database'), $isActive('/admin/database')); ?>
             </div>
         </nav>

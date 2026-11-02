@@ -90,6 +90,7 @@ $router->post('/admin/users/{id}/platform-admin', [$adminConsole, 'togglePlatfor
 $router->post('/admin/settings/{key}', [$adminConsole, 'toggleSetting']);
 $router->get('/admin/templates', [$adminConsole, 'templates']);
 $router->get('/admin/audit', [$adminConsole, 'audit']);
+$router->get('/admin/system', [$adminConsole, 'system']);
 
 // Deployment: migration ledger, apply migrations, run seed (staff only).
 $router->get('/admin/database', [$adminDatabase, 'show']);

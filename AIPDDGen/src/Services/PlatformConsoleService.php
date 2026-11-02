@@ -80,28 +80,8 @@ final class PlatformConsoleService
             'workspaces' => self::dailyTrend('teams', 'deleted_at IS NULL'),
         ];
 
-        // System health for the control panel.
-        $pendingMigrations = 0;
-        try {
-            $pendingMigrations = count(Migrator::status(Db::pdo(), APP_ROOT . '/migrations')['pending']);
-        } catch (\Throwable) {
-            $pendingMigrations = -1;
-        }
-        $dbSize = (float) (Db::selectOne(
-            'SELECT ROUND((SUM(data_length) + SUM(index_length)) / 1024 / 1024, 1) AS total
-             FROM information_schema.tables WHERE table_schema = DATABASE()',
-        )['total'] ?? 0);
-        $diskFree = @disk_free_space(APP_ROOT);
-        $system = [
-            'db_size_mb' => $dbSize,
-            'storage_mb' => round(self::directorySize(APP_ROOT . '/storage') / 1024 / 1024, 1),
-            'disk_free_mb' => $diskFree !== false ? round($diskFree / 1024 / 1024) : -1,
-            'pending_migrations' => $pendingMigrations,
-            'php' => PHP_VERSION,
-            'env' => (string) Config::get('app.env'),
-            'url' => (string) Config::get('app.url'),
-            'mail' => (string) Config::get('email.transport'),
-        ];
+        // System health (its own page under SYSTEM: /admin/system).
+        $system = self::buildSystem();
 
         $plans = Db::select('SELECT plan, COUNT(*) AS total FROM teams WHERE deleted_at IS NULL GROUP BY plan');
         $planCounts = [];
@@ -208,6 +188,45 @@ final class PlatformConsoleService
         }
 
         return $size;
+    }
+
+    /**
+     * System health block for the dedicated /admin/system page.
+     *
+     * @return array<string, int|string>
+     */
+    public static function systemHealth(string $userId): array
+    {
+        self::assertStaff($userId);
+        return self::buildSystem();
+    }
+
+    /** @return array<string, int|string> */
+    private static function buildSystem(): array
+    {
+        $pendingMigrations = 0;
+        try {
+            $pendingMigrations = count(Migrator::status(Db::pdo(), APP_ROOT . '/migrations')['pending']);
+        } catch (\Throwable) {
+            $pendingMigrations = -1;
+        }
+
+        $dbSize = (float) (Db::selectOne(
+            'SELECT ROUND((SUM(data_length) + SUM(index_length)) / 1024 / 1024, 1) AS total
+             FROM information_schema.tables WHERE table_schema = DATABASE()',
+        )['total'] ?? 0);
+        $diskFree = @disk_free_space(APP_ROOT);
+
+        return [
+            'db_size_mb' => $dbSize,
+            'storage_mb' => round(self::directorySize(APP_ROOT . '/storage') / 1024 / 1024, 1),
+            'disk_free_mb' => $diskFree !== false ? round($diskFree / 1024 / 1024) : -1,
+            'pending_migrations' => $pendingMigrations,
+            'php' => PHP_VERSION,
+            'env' => (string) Config::get('app.env'),
+            'url' => (string) Config::get('app.url'),
+            'mail' => (string) Config::get('email.transport'),
+        ];
     }
 
     /**

@@ -615,6 +615,7 @@ return [
 
     // Deployment: database maintenance page.
     'console.nav_database' => 'Database',
+    'console.nav_system_health' => 'System Health',
     'console.link_database' => 'Database & deployment',
     'console.link_database_sub' => 'Migrations, seeds, live deployment',
     'db.title' => 'Database & deployment',
@@ -750,6 +751,7 @@ return [
     'super.facts_total' => 'Facts stored',
     'super.audit_24h' => 'Audit events (24 h)',
     'super.system' => 'System health',
+    'super.system_sub' => 'Migrations, storage, server and mail checks for this deployment.',
     'super.manage_db' => 'Manage database',
     'super.pending_migrations' => 'Pending migrations',
     'super.up_to_date' => 'Up to date',

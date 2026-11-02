@@ -58,7 +58,7 @@ $tenantLogin = Invoke-Request '/login' -Method POST -Session $tenant -NoRedirect
     _csrf = $tenantToken; email = 'demo@pddgen.local'; password = 'DemoPassw0rd!123'; next = '/dashboard'
 }
 Check 'demo tenant can sign in' ($tenantLogin.Status -eq 303) "status=$($tenantLogin.Status)"
-foreach ($consolePath in @('/admin', '/admin/tasks', '/admin/workspaces', '/admin/kyc', '/admin/users', '/admin/templates', '/admin/audit', '/admin/database')) {
+foreach ($consolePath in @('/admin', '/admin/tasks', '/admin/workspaces', '/admin/kyc', '/admin/users', '/admin/templates', '/admin/audit', '/admin/system', '/admin/database')) {
     $tenantConsole = Invoke-Request $consolePath -Session $tenant
     Check "tenant gets 404 on $consolePath" ($tenantConsole.Status -eq 404) "status=$($tenantConsole.Status)"
 }
@@ -77,7 +77,7 @@ $dashboard = Invoke-Request '/admin' -Session $staff
 Check 'super admin dashboard renders' ($dashboard.Status -eq 200 -and $dashboard.Content -match 'Super admin dashboard')
 Check 'KPI tiles present' ($dashboard.Content -match 'Platform statistics')
 Check 'growth stats present' ($dashboard.Content -match 'Growth and activity')
-Check 'system health present' ($dashboard.Content -match 'System health')
+Check 'system health menu item present' ($dashboard.Content -match 'System Health' -and $dashboard.Content -match '/admin/system')
 Check 'platform controls present' ($dashboard.Content -match 'Platform controls' -and $dashboard.Content -match 'Maintenance mode')
 Check 'quick actions present' ($dashboard.Content -match 'Review KYC' -and $dashboard.Content -match 'Open queue')
 Check 'KYC status present' ($dashboard.Content -match 'KYC waiting')
@@ -111,6 +111,7 @@ $consolePages = @{
     '/admin/users'      = 'Users'
     '/admin/templates'  = 'Template library'
     '/admin/audit'      = 'Audit'
+    '/admin/system'     = 'System Health'
     '/admin/database'   = 'Database'
 }
 foreach ($page in $consolePages.GetEnumerator()) {

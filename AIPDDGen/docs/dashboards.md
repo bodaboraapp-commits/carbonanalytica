@@ -43,14 +43,15 @@ The workspace dashboard shows a **Team** card listing both groups with names, em
 
 | Page | What it shows |
 | --- | --- |
-| `/admin` | **Super Admin dashboard**: stat cards with real 7-day deltas + sparklines, SVG growth charts (7-day line/area + this-week-vs-previous bars), system health (pending migrations, DB size, storage, disk, mail transport, environment), platform controls (maintenance mode, sign-ups, two-factor), platform totals, newest users/workspaces and recent audit activity |
+| `/admin` | **Super Admin dashboard**: stat cards with real 7-day deltas + sparklines, SVG growth charts (7-day line/area + this-week-vs-previous bars), platform controls (maintenance mode, sign-ups, two-factor), platform totals, newest users/workspaces and recent audit activity |
 | `/admin/workspaces` | Every workspace: name/slug, KYC status (badge), members, projects, created, last activity; search + KYC filter + pagination |
 | `/admin/kyc` | Organisation profiles submitted for verification: company, workspace, status, documents, submitted date, link to the open KYB task; counts per status |
 | `/admin/users` | Every account: name/email, workspace count, platform-admin badge, last sign-in; search + "only platform admins" filter; promote/demote platform admins |
 | `/admin/templates` | Template versions: template name, version, registry, language, parsed sections and fields, status, publish date; counts per status |
 | `/admin/audit` | Audit trail: time, actor, action, workspace, metadata; filter by action; pagination |
+| `/admin/system` | **System Health** (SYSTEM group): pending migrations, database size, storage used, free disk, email transport, environment/PHP and APP_URL |
 | `/admin/database` | Migration ledger with **Apply pending migrations** and **Run seed** buttons, connection summary and seed readiness (staff-only deployment page) |
-| `/admin/tasks` | Review job queue (unchanged): attention counters live on the overview now; queue offers assignment, completion, filters |
+| `/admin/tasks` | Platform review queue: organisation KYB + template QA tasks (workspace tasks live in each workspace's own `/dashboard/tasks` queue) |
 
 ### Super Admin dashboard (`/admin`)
 
@@ -61,7 +62,7 @@ The overview is the **Super Admin dashboard**:
 - **Stats**: four stat cards (workspaces, projects, users, open review tasks with breached-SLA badge) each with a real 7-day delta, inline SVG sparkline and a trend direction (↑ Increasing / ↓ Decreasing / → No change when the prior week has no rows — never an invented percent), plus platform totals (KYC waiting, verified organisations, published templates, documents, plans).
 - **Growth charts** (server-rendered SVG, no JS library): an equal-sized pair of cards — a 7-day multi-series line/area chart for users, projects, drafts and review tasks (per-point hover titles + visually hidden data table) and a "this week vs previous week" paired bar chart from real totals — with the compact stat strip rendered above them: active users (7d), new users (30d), platform admins, workspace admins, staff/workers and facts stored.
 - **Console chrome**: sticky top bar (search, public portal, language, SLA bell, greeting, sign-out) plus a Montra-style floating left panel — grouped uppercase sections, icon+label rows, solid green active pill, account block and a CSRF sign-out row; collapses behind a CSS-only Menu toggle under 980px.
-- **System health**: pending migrations, database size, storage usage, free disk, email transport, environment and PHP version.
+- **System Health** (SYSTEM group → `/admin/system`): pending migrations, database size, storage used, free disk, email transport, environment/PHP and APP_URL — moved out of the overview into its own page.
 - **Platform controls** (audited as `admin.settings.changed`, stored in `platform_settings` — migration `0007`):
   - **Maintenance mode** — when on, non-staff visitors get a `503` maintenance page; staff keep full access and can still sign in (`/login` stays reachable).
   - **Sign-ups** — when off, the public `/signup` page closes with a notice; invitations still work.

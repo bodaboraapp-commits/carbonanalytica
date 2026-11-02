@@ -12,7 +12,6 @@ declare(strict_types=1);
 
 $metrics = $overview['metrics'];
 $trends = $overview['trends'] ?? [];
-$system = $overview['system'];
 $settings = $overview['settings'];
 $plans = $overview['plans'];
 $otpOn = (int) ($user['otp_enabled'] ?? 0) === 1;
@@ -525,52 +524,12 @@ $statCards = [
     </div>
 </section>
 
-<div class="console-columns">
-    <section class="panel-card" aria-labelledby="super-system-title">
-        <div class="panel-card__head">
-            <h2 id="super-system-title"><?= e(t('super.system')) ?></h2>
-            <a class="admin-link-arrow" href="<?= e(url('/admin/database')) ?>"><?= e(t('super.manage_db')) ?> <span aria-hidden="true">&#8594;</span></a>
-        </div>
-        <ul class="summary-list">
-            <li class="summary-list__item">
-                <span class="summary-list__main"><strong><?= e(t('super.pending_migrations')) ?></strong></span>
-                <?php if ($system['pending_migrations'] === 0): ?>
-                    <span class="badge"><?= e(t('super.up_to_date')) ?></span>
-                <?php elseif ($system['pending_migrations'] < 0): ?>
-                    <span class="badge badge--neutral"><?= e(t('super.unknown')) ?></span>
-                <?php else: ?>
-                    <span class="badge badge--high"><?= e((string) $system['pending_migrations']) ?></span>
-                <?php endif; ?>
-            </li>
-            <li class="summary-list__item">
-                <span class="summary-list__main"><strong><?= e(t('super.db_size')) ?></strong></span>
-                <span class="admin-muted"><?= e((string) $system['db_size_mb']) ?> MB</span>
-            </li>
-            <li class="summary-list__item">
-                <span class="summary-list__main"><strong><?= e(t('super.storage')) ?></strong></span>
-                <span class="admin-muted"><?= e((string) $system['storage_mb']) ?> MB</span>
-            </li>
-            <li class="summary-list__item">
-                <span class="summary-list__main"><strong><?= e(t('super.disk_free')) ?></strong></span>
-                <span class="admin-muted"><?= e($system['disk_free_mb'] >= 0 ? (string) $system['disk_free_mb'] . ' MB' : t('super.unknown')) ?></span>
-            </li>
-            <li class="summary-list__item">
-                <span class="summary-list__main"><strong><?= e(t('super.mail')) ?></strong></span>
-                <span class="admin-muted"><?= e((string) $system['mail']) ?></span>
-            </li>
-            <li class="summary-list__item">
-                <span class="summary-list__main"><strong><?= e(t('super.env')) ?></strong></span>
-                <span class="admin-muted"><?= e((string) $system['env']) ?> · PHP <?= e((string) $system['php']) ?></span>
-            </li>
-        </ul>
-    </section>
+<section class="panel-card" aria-labelledby="super-controls-title">
+    <div class="panel-card__head">
+        <h2 id="super-controls-title"><?= e(t('super.controls')) ?></h2>
+    </div>
 
-    <section class="panel-card" aria-labelledby="super-controls-title">
-        <div class="panel-card__head">
-            <h2 id="super-controls-title"><?= e(t('super.controls')) ?></h2>
-        </div>
-
-        <div class="security-row">
+    <div class="security-row">
             <div class="security-row__text">
                 <strong><?= e(t('super.maintenance_mode')) ?></strong>
                 <p class="admin-muted"><?= e(t('super.maintenance_note')) ?></p>
@@ -626,7 +585,6 @@ $statCards = [
             </div>
         </div>
     </section>
-</div>
 
 <div class="console-columns">
     <section class="panel-card" aria-labelledby="super-new-users-title">

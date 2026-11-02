@@ -29,6 +29,18 @@ final class AdminConsoleController extends Controller
         ], 'layout_admin');
     }
 
+    /** Dedicated System Health page (SYSTEM group). */
+    public function system(array $params): never
+    {
+        $user = $this->staff();
+
+        View::render('pages/admin/system', [
+            'user' => $user,
+            'system' => PlatformConsoleService::systemHealth((string) $user['id']),
+            'taskBadge' => PlatformConsoleService::taskBadge((string) $user['id']),
+        ], 'layout_admin');
+    }
+
     public function workspaces(array $params): never
     {
         $user = $this->staff();
