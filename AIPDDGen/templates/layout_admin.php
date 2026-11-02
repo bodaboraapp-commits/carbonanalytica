@@ -3,9 +3,8 @@
 declare(strict_types=1);
 
 /**
- * Staff console layout: top bar with search, public-portal link, alerts,
- * greeting and the signed-in user's menu — mirroring the operational console
- * the product owner asked for.
+ * Staff console layout: top bar (search, public portal, alerts, language,
+ * greeting, sign-out) and a left side-panel menu grouping the console pages.
  *
  * @var string $content
  * @var int $taskBadge
@@ -26,6 +25,18 @@ $adminTitle = isset($title) && $title !== '' ? $title . ' · ' . t('admin.consol
 $adminFlashes = Session::takeFlashes();
 $adminFirstName = $adminUser !== null ? explode(' ', trim((string) $adminUser['name']))[0] : '';
 $adminBadge = isset($taskBadge) ? (int) $taskBadge : 0;
+
+$isActive = static fn (string $path): bool => $adminPath === $path || str_starts_with($adminPath, $path . '/');
+$navLink = static function (string $href, string $label, bool $active, int $badge = 0) use ($adminBadge): void {
+    ?>
+    <a class="admin-nav-link" href="<?= e(url($href)) ?>" <?= $active ? 'aria-current="page"' : '' ?>>
+        <span><?= e($label) ?></span>
+        <?php if ($badge > 0): ?>
+            <span class="admin-nav-link__badge" aria-label="<?= e(t('console.menu_alerts_badge', ['count' => $badge])) ?>"><?= e((string) $badge) ?></span>
+        <?php endif; ?>
+    </a>
+    <?php
+};
 ?>
 <!doctype html>
 <html lang="<?= e($adminLocale) ?>">
@@ -42,6 +53,11 @@ $adminBadge = isset($taskBadge) ? (int) $taskBadge : 0;
 
 <header class="admin-topbar">
     <div class="admin-topbar__inner">
+        <label class="admin-nav-toggle" for="admin-nav-toggle">
+            <span aria-hidden="true">&#9776;</span>
+            <?= e(t('console.menu_toggle')) ?>
+        </label>
+
         <a class="admin-brand" href="<?= e(url('/admin')) ?>">
             <span class="brand__mark" aria-hidden="true">P</span>
             <span class="admin-brand__text">
@@ -82,42 +98,56 @@ $adminBadge = isset($taskBadge) ? (int) $taskBadge : 0;
             </form>
         </nav>
     </div>
-
-    <nav class="admin-tabs" aria-label="<?= e(t('admin.console_label')) ?>">
-        <a class="admin-tab" href="<?= e(url('/admin')) ?>" <?= $adminPath === '/admin' ? 'aria-current="page"' : '' ?>>
-            <?= e(t('console.nav_overview')) ?>
-        </a>
-        <a class="admin-tab" href="<?= e(url('/admin/tasks')) ?>" <?= str_starts_with($adminPath, '/admin/tasks') ? 'aria-current="page"' : '' ?>>
-            <?= e(t('console.nav_job_queue')) ?>
-        </a>
-        <a class="admin-tab" href="<?= e(url('/admin/workspaces')) ?>" <?= str_starts_with($adminPath, '/admin/workspaces') ? 'aria-current="page"' : '' ?>>
-            <?= e(t('console.nav_workspaces')) ?>
-        </a>
-        <a class="admin-tab" href="<?= e(url('/admin/kyc')) ?>" <?= str_starts_with($adminPath, '/admin/kyc') ? 'aria-current="page"' : '' ?>>
-            <?= e(t('console.nav_kyc')) ?>
-        </a>
-        <a class="admin-tab" href="<?= e(url('/admin/users')) ?>" <?= str_starts_with($adminPath, '/admin/users') ? 'aria-current="page"' : '' ?>>
-            <?= e(t('console.nav_users')) ?>
-        </a>
-        <a class="admin-tab" href="<?= e(url('/admin/templates')) ?>" <?= str_starts_with($adminPath, '/admin/templates') ? 'aria-current="page"' : '' ?>>
-            <?= e(t('console.nav_templates')) ?>
-        </a>
-        <a class="admin-tab" href="<?= e(url('/admin/audit')) ?>" <?= str_starts_with($adminPath, '/admin/audit') ? 'aria-current="page"' : '' ?>>
-            <?= e(t('console.nav_audit')) ?>
-        </a>
-        <a class="admin-tab" href="<?= e(url('/admin/database')) ?>" <?= str_starts_with($adminPath, '/admin/database') ? 'aria-current="page"' : '' ?>>
-            <?= e(t('console.nav_database')) ?>
-        </a>
-        <a class="admin-tab" href="<?= e(url('/dashboard')) ?>"><?= e(t('admin.my_workspace')) ?></a>
-    </nav>
 </header>
 
-<main id="main" class="admin-main">
-    <div class="admin-container">
-        <?php \App\View::partial('partials/flash', ['flashes' => $adminFlashes]); ?>
-        <?= $content ?>
-    </div>
-</main>
+<input type="checkbox" id="admin-nav-toggle" class="admin-nav-toggle-input" autocomplete="off">
+
+<div class="admin-shell">
+    <aside class="admin-sidebar" aria-label="<?= e(t('console.menu_label')) ?>">
+        <nav class="admin-sidebar__nav">
+            <div class="admin-nav-group">
+                <p class="admin-nav-group__title"><?= e(t('console.menu_overview')) ?></p>
+                <?php $navLink('/admin', t('console.nav_overview'), $adminPath === '/admin'); ?>
+            </div>
+
+            <div class="admin-nav-group">
+                <p class="admin-nav-group__title"><?= e(t('console.menu_operations')) ?></p>
+                <?php $navLink('/admin/tasks', t('console.nav_job_queue'), $isActive('/admin/tasks'), $adminBadge); ?>
+                <?php $navLink('/admin/workspaces', t('console.nav_workspaces'), $isActive('/admin/workspaces')); ?>
+                <?php $navLink('/admin/kyc', t('console.nav_kyc'), $isActive('/admin/kyc')); ?>
+                <?php $navLink('/admin/users', t('console.nav_users'), $isActive('/admin/users')); ?>
+            </div>
+
+            <div class="admin-nav-group">
+                <p class="admin-nav-group__title"><?= e(t('console.menu_content')) ?></p>
+                <?php $navLink('/admin/templates', t('console.nav_templates'), $isActive('/admin/templates')); ?>
+                <?php $navLink('/admin/audit', t('console.nav_audit'), $isActive('/admin/audit')); ?>
+            </div>
+
+            <div class="admin-nav-group">
+                <p class="admin-nav-group__title"><?= e(t('console.menu_system')) ?></p>
+                <?php $navLink('/admin/database', t('console.nav_database'), $isActive('/admin/database')); ?>
+            </div>
+        </nav>
+
+        <div class="admin-sidebar__foot">
+            <span><?= e(t('console.menu_signed_in')) ?></span>
+            <strong><?= e((string) ($adminUser['name'] ?? '')) ?></strong>
+            <span><?= e((string) ($adminUser['email'] ?? '')) ?></span>
+            <div class="admin-sidebar__links">
+                <a href="<?= e(url('/dashboard')) ?>"><?= e(t('admin.my_workspace')) ?></a>
+                <a href="<?= e(url('/')) ?>"><?= e(t('admin.public_portal')) ?></a>
+            </div>
+        </div>
+    </aside>
+
+    <main id="main" class="admin-main">
+        <div class="admin-container">
+            <?php \App\View::partial('partials/flash', ['flashes' => $adminFlashes]); ?>
+            <?= $content ?>
+        </div>
+    </main>
+</div>
 
 <footer class="admin-footer">
     <div class="admin-container admin-footer__inner">

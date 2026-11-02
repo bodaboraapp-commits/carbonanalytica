@@ -1,4 +1,4 @@
-# Dashboards: workspace (tenant) vs platform console (staff)
+﻿# Dashboards: workspace (tenant) vs platform console (staff)
 
 The product now has **two separate dashboards** with different audiences and data boundaries.
 
@@ -6,9 +6,9 @@ The product now has **two separate dashboards** with different audiences and dat
 | --- | --- | --- |
 | URL | `/dashboard` | `/admin` (+ `/admin/workspaces`, `/admin/kyc`, `/admin/users`, `/admin/templates`, `/admin/audit`, `/admin/tasks`) |
 | Audience | Any active member of a workspace (owner, admin, editor, viewer) | Platform staff only (`users.is_platform_admin = 1`) |
-| Data scope | Only the caller's current workspace — every query filtered by `team_id` via `Tenancy` | Every workspace, every account |
+| Data scope | Only the caller's current workspace â€” every query filtered by `team_id` via `Tenancy` | Every workspace, every account |
 | Look | Action Center layout: attention tiles, by-status breakdown, pipeline cards, KPI tiles, then projects + create form | Management console: platform KPIs, quick links, KYC preview, newest workspaces, recent audit, plans, sign-in security |
-| Access rule | Active membership required; suspended or foreign workspace → not found | Tenant account → **404** (console is invisible to customers) |
+| Access rule | Active membership required; suspended or foreign workspace â†’ not found | Tenant account â†’ **404** (console is invisible to customers) |
 
 The previous staff "Action Center" design moved to the tenant dashboard; staff get a fresh console focused on operating the platform.
 
@@ -16,12 +16,12 @@ The previous staff "Action Center" design moved to the tenant dashboard; staff g
 
 Sections:
 
-1. **Organization prompt** — continue onboarding when the profile is incomplete or show "submitted for review".
-2. **Action Center tiles** — projects in setup, fact sheets to approve, drafts in review.
-3. **By project status** — counts per status, linking to the project list.
-4. **Workspace pipeline** — projects, fact sheets pending, drafts in review, uploaded documents.
-5. **Workspace totals** — team members, projects, drafts, confirmed facts.
-6. **Projects** — the project list plus the create form (unchanged), inline comments/description.
+1. **Organization prompt** â€” continue onboarding when the profile is incomplete or show "submitted for review".
+2. **Action Center tiles** â€” projects in setup, fact sheets to approve, drafts in review.
+3. **By project status** â€” counts per status, linking to the project list.
+4. **Workspace pipeline** â€” projects, fact sheets pending, drafts in review, uploaded documents.
+5. **Workspace totals** â€” team members, projects, drafts, confirmed facts.
+6. **Projects** â€” the project list plus the create form (unchanged), inline comments/description.
 
 Data source: `src/Services/WorkspaceDashboardService.php`. Every number is derived from `team_id = current workspace`; the service calls `Tenancy::teamForUser()` first, so it cannot be used to read another workspace. Viewers see the numbers but not the create form.
 
@@ -49,7 +49,7 @@ Data sources: `src/Services/PlatformConsoleService.php` (all pages re-check the 
 
 ### Sign-in security
 
-The email second factor is **off by default** (migration `0006`) and is a per-account switch: `/admin` → *Sign-in security* card → **Turn on two-factor**. When on, the next sign-in asks for a 6-digit emailed code. Sign-up email confirmation is separate and unaffected.
+The email second factor is **off by default** (migration `0006`) and is a per-account switch: `/admin` â†’ *Sign-in security* card â†’ **Turn on two-factor**. When on, the next sign-in asks for a 6-digit emailed code. Sign-up email confirmation is separate and unaffected.
 
 ## Routes and guards
 

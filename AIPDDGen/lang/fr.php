@@ -701,4 +701,14 @@ return [
     'deploy.dry_done' => 'Validé : {count} instructions ({tables} tables). Rien n’a été importé.',
     'deploy.failed' => 'Échec de l’import — consultez storage/logs/app.log.',
     'deploy.confirm_needed' => 'Confirmation de remplacement requise : utilisez le lien « Remplacer les données et importer », ou la console /admin/database/import.',
+
+    // Menu latéral de la console.
+    'console.menu_label' => 'Menu de la console',
+    'console.menu_toggle' => 'Menu',
+    'console.menu_overview' => 'Vue d’ensemble',
+    'console.menu_operations' => 'Opérations',
+    'console.menu_content' => 'Contenu',
+    'console.menu_system' => 'Système',
+    'console.menu_signed_in' => 'Connecté en tant que',
+    'console.menu_alerts_badge' => '{count} alerte(s) SLA',
 ];

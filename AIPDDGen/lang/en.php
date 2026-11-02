@@ -701,4 +701,14 @@ return [
     'deploy.dry_done' => 'Validated {count} statements ({tables} tables). Nothing was imported.',
     'deploy.failed' => 'Import failed — check storage/logs/app.log.',
     'deploy.confirm_needed' => 'Replacement confirmation required: use the "Replace data and import" link, or the staff console at /admin/database/import.',
+
+    // Admin side-panel menu.
+    'console.menu_label' => 'Console menu',
+    'console.menu_toggle' => 'Menu',
+    'console.menu_overview' => 'Overview',
+    'console.menu_operations' => 'Operations',
+    'console.menu_content' => 'Content',
+    'console.menu_system' => 'System',
+    'console.menu_signed_in' => 'Signed in as',
+    'console.menu_alerts_badge' => '{count} SLA alert(s)',
 ];

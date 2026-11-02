@@ -78,6 +78,8 @@ Check 'quick links present' ($dashboard.Content -match 'Jump to')
 Check 'KYC preview present' ($dashboard.Content -match 'KYC waiting for review')
 Check 'recent activity present' ($dashboard.Content -match 'Recent activity')
 Check 'security card present' ($dashboard.Content -match 'Two-factor sign-in')
+Check 'left side-panel menu present' ($dashboard.Content -match 'admin-sidebar' -and $dashboard.Content -match 'admin-nav-group__title')
+Check 'mobile menu toggle present' ($dashboard.Content -match 'admin-nav-toggle-input')
 
 $consolePages = @{
     '/admin/workspaces' = 'Workspaces'
