@@ -617,17 +617,35 @@ final class PlatformConsoleService
         return $row === null ? null : (string) $row['id'];
     }
 
-    /** @return array{rows: list<array<string,mixed>>, counts: array<string,int>} */
-    public static function kycQueue(string $userId): array
+    /**
+     * KYC review queue rows (staff scope), filtered by decision status.
+     *
+     * @param array{status?: string} $filters
+     * @return array{rows: list<array<string,mixed>>, counts: array<string,int>, status: string}
+     */
+    public static function kycQueue(string $userId, array $filters = []): array
     {
         self::assertStaff($userId);
 
+        $status = (string) ($filters['status'] ?? 'submitted');
+        if (!in_array($status, ['submitted', 'verified', 'rejected', 'all'], true)) {
+            $status = 'submitted';
+        }
+
         if (!ReviewTaskRepository::tableExists('organization_profiles')) {
-            return ['rows' => [], 'counts' => []];
+            return ['rows' => [], 'counts' => [], 'status' => $status];
+        }
+
+        $where = "op.status IN ('submitted','verified','rejected')";
+        $params = [];
+        if ($status !== 'all') {
+            $where = 'op.status = ?';
+            $params = [$status];
         }
 
         $rows = Db::select(
-            "SELECT op.id, op.team_id, op.legal_name, op.trading_name, op.status, op.submitted_at, op.reviewed_at,
+            "SELECT op.id, op.team_id, op.legal_name, op.trading_name, op.status, op.submitted_at,
+                    op.reviewed_at, op.review_note,
                     t.name AS team_name,
                     (SELECT COUNT(*) FROM organization_documents od WHERE od.team_id = op.team_id) AS documents,
                     (SELECT rt.id FROM review_tasks rt
@@ -636,9 +654,10 @@ final class PlatformConsoleService
                      ORDER BY rt.created_at DESC LIMIT 1) AS open_task_id
              FROM organization_profiles op
              INNER JOIN teams t ON t.id = op.team_id
-             WHERE op.status IN ('submitted','verified','rejected')
+             WHERE {$where}
              ORDER BY FIELD(op.status, 'submitted', 'rejected', 'verified'), op.submitted_at DESC
              LIMIT 100",
+            $params,
         );
 
         $countsRows = Db::select('SELECT status, COUNT(*) AS total FROM organization_profiles GROUP BY status');
@@ -647,7 +666,7 @@ final class PlatformConsoleService
             $counts[(string) $row['status']] = (int) $row['total'];
         }
 
-        return ['rows' => $rows, 'counts' => $counts];
+        return ['rows' => $rows, 'counts' => $counts, 'status' => $status];
     }
 
     /**

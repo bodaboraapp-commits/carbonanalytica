@@ -1,0 +1,135 @@
+/* ---------------------------------------------------------------------------
+   Tenant workspace side navigation (signed-in pages only — layout.php).
+   Two-pane shell: a sticky side panel with the workspace links next to the
+   main column. Under 980px the panel collapses into a CSS-only drawer that
+   needs no JavaScript (same checkbox pattern as the platform console).
+   --------------------------------------------------------------------------- */
+
+.tenant-shell {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: clamp(1.25rem, 3vw, 2.25rem);
+  align-items: start;
+}
+
+.tenant-sidebar {
+  position: sticky;
+  top: 1rem;
+  min-width: 0;
+}
+
+.tenant-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.55rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.tenant-nav__link {
+  display: flex;
+  align-items: center;
+  min-height: 2.5rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius-sm);
+  color: var(--ink-soft);
+  font-weight: 600;
+  font-size: 0.92rem;
+  line-height: 1.2;
+  text-decoration: none;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.tenant-nav__link:hover {
+  background: var(--bg-deep);
+  color: var(--ink);
+}
+
+.tenant-nav__link:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.tenant-nav__link[aria-current="page"] {
+  background: var(--brand);
+  color: var(--brand-ink);
+}
+
+.tenant-nav__link--admin {
+  margin-top: 0.35rem;
+  border-top: 1px solid var(--line);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  padding-top: 0.75rem;
+}
+
+/* The drawer control exists only for the narrow layout. */
+.tenant-nav-toggle-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tenant-nav-toggle {
+  display: none;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tenant-nav-toggle__icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.tenant-nav-toggle-input:focus-visible + .tenant-nav-toggle {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.tenant-main {
+  min-width: 0;
+}
+
+@media (max-width: 980px) {
+  .tenant-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tenant-sidebar {
+    position: static;
+  }
+
+  .tenant-nav-toggle {
+    display: flex;
+  }
+
+  .tenant-nav {
+    display: none;
+    margin-top: 0.5rem;
+  }
+
+  .tenant-nav-toggle-input:checked ~ .tenant-nav {
+    display: flex;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tenant-nav__link {
+    transition: none;
+  }
+}

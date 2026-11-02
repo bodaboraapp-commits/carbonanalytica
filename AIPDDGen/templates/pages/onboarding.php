@@ -56,6 +56,12 @@ $statusKey = match ($status) {
         <div>
             <strong><?= e(t('org.banner_submitted_title')) ?></strong>
             <?= e(t('org.banner_submitted_body', ['date' => format_date((string) ($profile['submitted_at'] ?? ''))])) ?>
+            <?php if ((string) ($profile['review_note'] ?? '') !== ''): ?>
+                <p class="mt-1 mb-0">
+                    <strong><?= e(t('org.previous_review_note_label')) ?></strong>
+                    <?= e((string) $profile['review_note']) ?>
+                </p>
+            <?php endif; ?>
         </div>
     </div>
 <?php elseif ($status === 'verified'): ?>
@@ -72,6 +78,11 @@ $statusKey = match ($status) {
             <?= e(t('org.banner_rejected_body')) ?>
             <?php if ((string) ($profile['review_note'] ?? '') !== ''): ?>
                 <p class="mt-1 mb-0"><?= e((string) $profile['review_note']) ?></p>
+            <?php endif; ?>
+            <?php if ($canEdit): ?>
+                <p class="mt-1 mb-0">
+                    <a class="btn btn--secondary btn--sm" href="<?= e(url('/onboarding') . '?step=4') ?>"><?= e(t('org.review_update_cta')) ?></a>
+                </p>
             <?php endif; ?>
         </div>
     </div>

@@ -28,11 +28,84 @@ use App\View;
  */
 final class AiEngineController extends Controller
 {
-    /** Settings page: configuration form, status, Test connection, test bench. */
+    /**
+     * Server-side tabs: plain query strings so every tab is deep-linkable and
+     * works without JavaScript. Anything unknown falls back to overview.
+     */
+    public const TABS = ['overview', 'settings', 'skill', 'bench'];
+
+    /** PRG action => the tab the user returns to. */
+    private const ACTION_TABS = [
+        'test_connection' => 'overview',
+        'bench_run' => 'bench',
+        'example_save' => 'bench',
+        'example_toggle' => 'bench',
+        'example_delete' => 'bench',
+    ];
+
+    /** Validate a `?tab=` value (invalid/missing → overview). */
+    public static function normaliseTab(mixed $raw): string
+    {
+        return is_string($raw) && in_array($raw, self::TABS, true) ? $raw : 'overview';
+    }
+
+    /**
+     * Which tab a settings/skills save came from. The frontend can send a hidden
+     * `_tab=settings|skill`; otherwise the presence of skill inputs (or an
+     * uploaded skill document) identifies the skills form.
+     *
+     * @param array<string, mixed> $post
+     * @param array<string, mixed> $files
+     */
+    public static function saveOrigin(array $post, array $files): string
+    {
+        $tab = (string) ($post['_tab'] ?? '');
+        if ($tab === 'settings' || $tab === 'skill') {
+            return $tab;
+        }
+
+        foreach (array_keys(AiEngineService::SKILL_UPLOAD_FIELDS) as $skillField) {
+            if (array_key_exists($skillField, $post)) {
+                return 'skill';
+            }
+        }
+        foreach (AiEngineService::SKILL_UPLOAD_FIELDS as $uploadField) {
+            if (isset($files[$uploadField]) && is_array($files[$uploadField])) {
+                return 'skill';
+            }
+        }
+
+        return 'settings';
+    }
+
+    /**
+     * PRG redirect target for an action: always `/admin/ai?tab=…`, preserving the
+     * existing bench anchors. Query-only tabs; no new routes.
+     *
+     * @param array<string, mixed> $post
+     * @param array<string, mixed> $files
+     */
+    public static function redirectPath(string $action, array $post = [], array $files = []): string
+    {
+        $tab = $action === 'save'
+            ? self::saveOrigin($post, $files)
+            : (self::ACTION_TABS[$action] ?? 'overview');
+
+        $anchor = match ($action) {
+            'bench_run' => '#test-bench',
+            'example_save', 'example_toggle', 'example_delete' => '#examples',
+            default => '',
+        };
+
+        return '/admin/ai?tab=' . $tab . $anchor;
+    }
+
+    /** Settings page: status header + the active server-side tab. */
     public function show(array $params): never
     {
         $user = $this->staff();
         $userId = (string) $user['id'];
+        $activeTab = self::normaliseTab(Http::queryString('tab'));
 
         // Ephemeral bench result / repopulated form: read once, then forget.
         $benchResult = Session::get('_ai_bench_result');
@@ -42,7 +115,11 @@ final class AiEngineController extends Controller
 
         View::render('pages/admin/ai', [
             'user' => $user,
+            'activeTab' => $activeTab,
             'settings' => AiEngineService::publicSettings(),
+            // Dynamic Skill tab data: per-template/version SKILL.md rows grouped
+            // by registry, registry fallbacks and global instructions.
+            'skills' => AiEngineService::skillTabPayload(),
             'errors' => Session::takeErrors(),
             'bench' => [
                 'result' => is_array($benchResult) ? $benchResult : null,
@@ -62,15 +139,18 @@ final class AiEngineController extends Controller
     public function save(array $params): never
     {
         $user = $this->staff();
+        $input = Http::all();
 
         try {
-            AiEngineService::save((string) $user['id'], Http::all());
+            // Uploaded .md skill documents replace the matching textarea on save.
+            $input = AiEngineService::applySkillUploads($input, $_FILES);
+            AiEngineService::save((string) $user['id'], $input);
             $this->flash('success', t('flash.ai_settings_saved'));
         } catch (AppError $error) {
             if ($error->fields !== []) {
                 // Never remember the API key: the masked field is write-only, so
                 // the plaintext key must not be parked in the session either.
-                $safeOld = Http::all();
+                $safeOld = $input;
                 unset($safeOld['api_key'], $safeOld['_csrf']);
                 $this->rememberInput($safeOld);
                 Session::errors($error->fields);
@@ -83,7 +163,7 @@ final class AiEngineController extends Controller
             $this->flash('error', t('common.something_wrong'));
         }
 
-        Http::redirect('/admin/ai');
+        Http::redirect(self::redirectPath('save', Http::all(), $_FILES));
     }
 
     /** The only staff action that makes a real request to the provider. */
@@ -101,7 +181,7 @@ final class AiEngineController extends Controller
             $this->flash('error', t('common.something_wrong'));
         }
 
-        Http::redirect('/admin/ai');
+        Http::redirect(self::redirectPath('test_connection'));
     }
 
     /**
@@ -148,7 +228,7 @@ final class AiEngineController extends Controller
             $this->flash('error', t('common.something_wrong'));
         }
 
-        Http::redirect('/admin/ai#test-bench');
+        Http::redirect(self::redirectPath('bench_run'));
     }
 
     /** Save a reviewed input/output pair as a few-shot example for a registry. */
@@ -174,7 +254,7 @@ final class AiEngineController extends Controller
             $this->flash('error', t('common.something_wrong'));
         }
 
-        Http::redirect('/admin/ai#examples');
+        Http::redirect(self::redirectPath('example_save'));
     }
 
     /** Enable or disable one example. */
@@ -193,7 +273,7 @@ final class AiEngineController extends Controller
             $this->flash('error', t('common.something_wrong'));
         }
 
-        Http::redirect('/admin/ai#examples');
+        Http::redirect(self::redirectPath('example_toggle'));
     }
 
     /** Delete one example. */
@@ -211,7 +291,7 @@ final class AiEngineController extends Controller
             $this->flash('error', t('common.something_wrong'));
         }
 
-        Http::redirect('/admin/ai#examples');
+        Http::redirect(self::redirectPath('example_delete'));
     }
 
     /** @return array<string, mixed> */

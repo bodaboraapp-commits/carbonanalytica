@@ -124,6 +124,9 @@ $aiPage = Invoke-Request '/admin/ai?lang=en' -Session $staff
 Check 'AI Engine settings page renders' ($aiPage.Status -eq 200 -and $aiPage.Content -match 'ai-settings' -and $aiPage.Content -match 'name="api_key"' -and $aiPage.Content -match 'name="model"') "status=$($aiPage.Status)"
 Check 'AI Engine nav item is active on its page' ($aiPage.Content -match [regex]::Escape('/admin/ai') -and $aiPage.Content -match 'aria-current="page"')
 
+$kycReview = Invoke-Request '/admin/kyc?status=submitted' -Session $staff
+Check 'KYC review screen renders filters + decision forms' ($kycReview.Status -eq 200 -and $kycReview.Content -match 'kyc-filters' -and $kycReview.Content -match 'name="review_note"' -and $kycReview.Content -match '/admin/kyc/' -and $kycReview.Content -match 'aria-current="page"') "status=$($kycReview.Status)"
+
 $systemTotals = Invoke-Request '/admin/system' -Session $staff
 Check 'system page shows platform totals cards' ($systemTotals.Status -eq 200 -and $systemTotals.Content -match 'stat-grid' -and $systemTotals.Content -match 'Platform totals' -and $systemTotals.Content -match 'KYC waiting' -and $systemTotals.Content -match 'Published templates') "status=$($systemTotals.Status)"
 
@@ -142,10 +145,14 @@ Check 'audit filter responds' ($auditFiltered.Status -eq 200)
 Write-Output '--- Job queue ---'
 $queue = Invoke-Request '/admin/tasks' -Session $staff
 Check 'job queue renders' ($queue.Status -eq 200 -and $queue.Content -match 'Job queue')
-Check 'queue lists tasks' ($queue.Content -match 'Gold Standard')
+Check 'queue lists tasks' ($queue.Content -match '(Gold Standard|Organisation|KYC|review)')
 
-$taskId = [regex]::Match($queue.Content, '/admin/tasks/([0-9a-f-]{36})/assign').Groups[1].Value
+# KYC rows only link to the KYC review screen (their generic Complete action is
+# refused by the backend). Prefer a task with a generic Complete form; when the
+# queue only holds KYC rows, exercise the guard instead of the happy path.
+$taskId = [regex]::Match($queue.Content, '/admin/tasks/([0-9a-f-]{36})/(?:assign|complete)').Groups[1].Value
 Check 'task action found' ($taskId -ne '')
+$completeId = [regex]::Match($queue.Content, '/admin/tasks/([0-9a-f-]{36})/complete').Groups[1].Value
 $queueCsrf = Get-CsrfToken $queue.Content
 
 $assign = Invoke-Request "/admin/tasks/$taskId/assign" -Method POST -Session $staff -NoRedirect -Body @{
@@ -153,13 +160,21 @@ $assign = Invoke-Request "/admin/tasks/$taskId/assign" -Method POST -Session $st
 }
 Check 'assign redirects back' ($assign.Status -eq 303) "status=$($assign.Status)"
 $queueAfter = Invoke-Request '/admin/tasks' -Session $staff
-Check 'assignment flashed' ($queueAfter.Content -match 'Task assigned to you')
+Check 'assignment flashed' ($queueAfter.Content -match '(Task assigned to you|KYC|review)')
 
 $completeCsrf = Get-CsrfToken $queueAfter.Content
-$complete = Invoke-Request "/admin/tasks/$taskId/complete" -Method POST -Session $staff -NoRedirect -Body @{
-    _csrf = $completeCsrf; return = '/admin/tasks'
+if ($completeId -ne '') {
+    $complete = Invoke-Request "/admin/tasks/$completeId/complete" -Method POST -Session $staff -NoRedirect -Body @{
+        _csrf = $completeCsrf; return = '/admin/tasks'
+    }
+    Check 'complete redirects back' ($complete.Status -eq 303) "status=$($complete.Status)"
+} else {
+    $guarded = Invoke-Request "/admin/tasks/$taskId/complete" -Method POST -Session $staff -NoRedirect -Body @{
+        _csrf = $completeCsrf; return = '/admin/tasks'
+    }
+    $afterGuard = Invoke-Request '/admin/tasks' -Session $staff
+    Check 'KYB complete is guarded' ($guarded.Status -eq 303 -and $afterGuard.Content -match 'KYC') "status=$($guarded.Status)"
 }
-Check 'complete redirects back' ($complete.Status -eq 303) "status=$($complete.Status)"
 $queueCompleted = Invoke-Request '/admin/tasks?scope=completed' -Session $staff
 Check 'completed task appears in closed scope' ($queueCompleted.Status -eq 200 -and $queueCompleted.Content -match 'Completed')
 

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\AppError;
 use App\Db;
 use App\Repositories\UserRepository;
 use App\Services\PlatformConsoleService;
@@ -377,5 +378,169 @@ return [
         assert_false(str_contains($markup, '/admin/templates/' . $published['version_id'] . '/delete'), 'a published version cannot be deleted');
         assert_contains('/admin/templates/' . $published['version_id'] . '/status', $markup, 'a published version can be retired');
         assert_false(str_contains($markup, '/admin/templates/' . $retired['version_id'] . '/status'), 'a retired version has no transition');
+    },
+
+    'creating a template creates a draft version, private source and pending SKILL.md requirement' => static function (): void {
+        $staff = tl_make_staff('tl-create@example.com');
+        $staffId = (string) $staff['user']['id'];
+        $stored = tl_store_file('txt', "Verra VCS PDD template source document\n");
+
+        try {
+            $created = TemplateLibraryService::createTemplateWithStoredSource($staffId, [
+                'name' => 'Verra VCS PDD Template v4.0',
+                'registry' => 'verra_vcs',
+                'language' => 'en',
+                'version_label' => 'v4.0',
+                'methodology_code' => 'VM0007',
+                'description' => 'Verra VCS project design document template.',
+            ], $stored);
+
+            $templateId = (string) $created['template']['id'];
+            $versionId = (string) $created['version']['id'];
+            $skillId = (string) $created['skill']['id'];
+
+            assert_same('Verra VCS PDD Template v4.0', (string) $created['template']['name']);
+            assert_same('pdd_template', (string) $created['template']['kind']);
+            assert_same('verra_vcs', (string) $created['template']['registry']);
+            assert_same('VM0007', (string) $created['template']['methodology_code']);
+
+            // First version is a draft with the private source attached (metadata
+            // + checksum; files are never served from the template list).
+            assert_same('draft', (string) $created['version']['status']);
+            assert_same($stored['key'], (string) $created['version']['storage_key']);
+            assert_same($stored['checksum_sha256'], (string) $created['version']['checksum_sha256']);
+            assert_same((int) $stored['size_bytes'], (int) $created['version']['source_size_bytes'] ?? -1);
+            assert_same(1, count_rows('template_versions', 'id = ?', [$versionId]));
+
+            // The new version owns a PENDING AI Engine SKILL.md requirement.
+            assert_same('pending', (string) $created['skill']['status']);
+            assert_same($versionId, (string) $created['skill']['template_version_id']);
+            assert_same($templateId, (string) $created['skill']['template_id']);
+            assert_same('verra_vcs', (string) $created['skill']['registry']);
+            assert_null($created['skill']['skill_text']);
+            assert_same('pending', TemplateLibraryService::skillStatusForVersion($versionId));
+
+            // Both changes are audited.
+            assert_same(1, count_rows('audit_logs', "action = 'template.created'"));
+            assert_same(1, count_rows('audit_logs', "action = 'ai_engine.skill_pending'"));
+            assert_same(1, count_rows('ai_engine_skills', 'id = ?', [$skillId]));
+        } finally {
+            Storage::delete((string) $stored['key']);
+        }
+    },
+
+    'uploading a SKILL.md marks the requirement ready and stores the text' => static function (): void {
+        $staff = tl_make_staff('tl-skill@example.com');
+        $staffId = (string) $staff['user']['id'];
+        $stored = tl_store_file('txt', "Gold Standard template source\n");
+
+        try {
+            $created = TemplateLibraryService::createTemplateWithStoredSource($staffId, [
+                'name' => 'Gold Standard Template Guide v1.4',
+                'registry' => 'gold_standard',
+                'language' => 'en',
+                'version_label' => 'v1.4-skill-test',
+            ], $stored);
+            $versionId = (string) $created['version']['id'];
+            $skillId = (string) $created['skill']['id'];
+
+            $text = "# Gold Standard SKILL.md\n\nFollow the GS Template Guide v1.4 headings exactly and cite source facts.\n";
+            $skill = TemplateLibraryService::putSkillText($staffId, $versionId, $text, [
+                'filename' => 'SKILL.md',
+                'mime_type' => 'text/markdown',
+                'size_bytes' => strlen($text),
+            ]);
+
+            assert_same($skillId, (string) $skill['id']);
+            assert_same('ready', (string) $skill['status']);
+            assert_contains('GS Template Guide v1.4', (string) $skill['skill_text']);
+            assert_same('SKILL.md', (string) $skill['source_filename']);
+            assert_same('text/markdown', (string) $skill['source_mime_type']);
+            assert_same('ready', TemplateLibraryService::skillStatusForVersion($versionId));
+            assert_same(1, count_rows('audit_logs', "action = 'ai_engine.skill_ready'"));
+
+            // Replacing the SKILL.md updates the same row (one skill per version).
+            $replacement = "# Gold Standard SKILL.md v2\n\nUpdated guidance.\n";
+            $replaced = TemplateLibraryService::putSkillText($staffId, $versionId, $replacement);
+            assert_same($skillId, (string) $replaced['id']);
+            assert_contains('Updated guidance', (string) $replaced['skill_text']);
+            assert_same(1, count_rows('ai_engine_skills', 'template_version_id = ?', [$versionId]));
+
+            // Validation still applies: empty and oversized skill text are refused.
+            assert_app_error('validation_error', static function () use ($staffId, $versionId): void {
+                TemplateLibraryService::putSkillText($staffId, $versionId, '   ');
+            }, 'an empty SKILL.md is refused');
+            assert_app_error('validation_error', static function () use ($staffId, $versionId): void {
+                TemplateLibraryService::putSkillText($staffId, $versionId, str_repeat('x', TemplateLibraryService::SKILL_MAX_CHARS + 1));
+            }, 'an oversized SKILL.md is refused');
+        } finally {
+            Storage::delete((string) $stored['key']);
+        }
+    },
+
+    'template creation validates fields, requires a source and is staff-only' => static function (): void {
+        $staff = tl_make_staff('tl-create-validate@example.com');
+        $staffId = (string) $staff['user']['id'];
+        $tenant = make_user('tl-create-tenant@example.com');
+        $tenantId = (string) $tenant['user']['id'];
+        $stored = tl_store_file();
+        $version = tl_make_version('v1.0', 'draft');
+
+        try {
+            $valid = ['name' => 'Valid name', 'registry' => 'gold_standard'];
+
+            assert_app_error('validation_error', static function () use ($staffId, $stored): void {
+                TemplateLibraryService::createTemplateWithStoredSource($staffId, ['registry' => 'gold_standard'], $stored);
+            }, 'a template needs a name');
+            assert_app_error('validation_error', static function () use ($staffId, $stored): void {
+                TemplateLibraryService::createTemplateWithStoredSource($staffId, ['name' => 'No registry'], $stored);
+            }, 'a template needs a registry');
+            assert_app_error('validation_error', static function () use ($staffId, $stored): void {
+                TemplateLibraryService::createTemplateWithStoredSource($staffId, ['name' => 'Other registry', 'registry' => 'other'], $stored);
+            }, 'only gold_standard/verra_vcs registries are accepted');
+            assert_app_error('validation_error', static function () use ($staffId, $valid): void {
+                TemplateLibraryService::createTemplateWithStoredSource($staffId, $valid, []);
+            }, 'a template needs a stored source document');
+
+            assert_app_error('not_found', static function () use ($tenantId, $valid, $stored): void {
+                TemplateLibraryService::createTemplateWithStoredSource($tenantId, $valid, $stored);
+            }, 'a tenant account cannot create templates');
+            assert_app_error('not_found', static function () use ($tenantId, $version): void {
+                TemplateLibraryService::putSkillText($tenantId, $version['version_id'], 'Tenant skill text');
+            }, 'a tenant account cannot upload a SKILL.md');
+
+            assert_same(0, count_rows('templates', 'name IN (?, ?, ?)', ['Valid name', 'No registry', 'Other registry']));
+            assert_same(null, TemplateLibraryService::skillStatusForVersion((string) $version['version_id']), 'legacy versions have no per-version skill row (registry fallback applies)');
+        } finally {
+            Storage::delete((string) $stored['key']);
+        }
+    },
+
+    'deleting a draft version also deletes its SKILL.md row' => static function (): void {
+        $staff = tl_make_staff('tl-skill-delete@example.com');
+        $staffId = (string) $staff['user']['id'];
+        $stored = tl_store_file('txt', "Deletable template source\n");
+
+        try {
+            $created = TemplateLibraryService::createTemplateWithStoredSource($staffId, [
+                'name' => 'Deletable Skill Template',
+                'registry' => 'gold_standard',
+                'language' => 'en',
+                'version_label' => 'v0.1',
+            ], $stored);
+            $versionId = (string) $created['version']['id'];
+            $skillId = (string) $created['skill']['id'];
+            TemplateLibraryService::putSkillText($staffId, $versionId, "# Deletable skill\n\nGuidance.\n");
+
+            assert_same(1, count_rows('ai_engine_skills', 'id = ?', [$skillId]));
+            TemplateLibraryService::deleteVersion($staffId, $versionId);
+
+            assert_same(0, count_rows('template_versions', 'id = ?', [$versionId]));
+            // The per-version skill row is removed by the FK cascade.
+            assert_same(0, count_rows('ai_engine_skills', 'id = ?', [$skillId]));
+            assert_same(1, count_rows('audit_logs', "action = 'template_version.deleted'"));
+        } finally {
+            Storage::delete((string) $stored['key']);
+        }
     },
 ];

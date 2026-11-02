@@ -11,13 +11,41 @@ declare(strict_types=1);
  * @var list<array<string, mixed>> $teams
  */
 
-$pipeline = [
-    ['key' => 'inputs', 'label' => t('project.pipeline_inputs'), 'done' => false],
-    ['key' => 'facts', 'label' => t('project.pipeline_facts'), 'done' => false],
-    ['key' => 'draft', 'label' => t('project.pipeline_draft'), 'done' => false],
-    ['key' => 'check', 'label' => t('project.pipeline_check'), 'done' => false],
-    ['key' => 'export', 'label' => t('project.pipeline_export'), 'done' => false],
+// Read-only AI drafting state + real pipeline progress. Tenant/role rules and the
+// authoritative blocker (including the per-template SKILL.md requirement) live in
+// DraftService::readiness(); ProjectAiService only reads public APIs.
+$ai = \App\Services\ProjectAiService::overview((string) $user['id'], $project, (string) $role);
+$conditions = $ai['conditions'];
+$pipeline = $ai['pipeline'];
+$latestDraft = $ai['latest_draft'];
+
+$pipelineLabels = [
+    'inputs' => t('project.pipeline_inputs'),
+    'facts' => t('project.pipeline_facts'),
+    'draft' => t('project.pipeline_draft'),
+    'check' => t('project.pipeline_check'),
+    'export' => t('project.pipeline_export'),
 ];
+
+$pipelineHint = static function (array $step, string $currentKey): string {
+    if (($step['future'] ?? false) === true) {
+        return (string) $step['key'] === $currentKey
+            ? t('project.ai_pipeline_current') . ' — ' . t('project.pipeline_coming')
+            : t('project.pipeline_coming');
+    }
+    if ($step['done']) {
+        return match ((string) $step['key']) {
+            'inputs' => t('project.ai_pipeline_inputs_done', ['count' => (string) $step['detail']]),
+            'facts' => t('project.ai_pipeline_facts_done', ['version' => (string) $step['detail']]),
+            'draft' => t('project.ai_pipeline_draft_done', ['version' => (string) $step['detail']]),
+            default => t('project.ai_pipeline_done'),
+        };
+    }
+
+    return (string) $step['key'] === $currentKey
+        ? t('project.ai_pipeline_current')
+        : t('project.ai_pipeline_pending');
+};
 
 $registryLabel = match ($project['registry'] ?? null) {
     'gold_standard' => t('landing.registry_gs'),
@@ -29,12 +57,6 @@ $registryLabel = match ($project['registry'] ?? null) {
 $typeLabel = $project['project_type'] !== null
     ? ucwords(str_replace('_', ' ', (string) $project['project_type']))
     : t('project.not_set');
-
-// Read-only drafting state: whether generation is allowed right now, why not,
-// and the project's latest draft. The rules live in DraftService; the platform's
-// PageController only passes the project and the caller's role.
-$draftState = \App\Services\DraftService::uiState((string) $user['id'], $project, (string) $role);
-$latestDraft = $draftState['latest_draft'];
 ?>
 <p class="mb-2">
     <a class="btn btn--ghost btn--sm" href="<?= e(url('/dashboard')) ?>">← <?= e(t('project.back')) ?></a>
@@ -57,9 +79,62 @@ $latestDraft = $draftState['latest_draft'];
 
 <div class="page-grid">
     <div class="stack">
-        <section class="card" aria-labelledby="project-draft-title">
-            <h2 class="panel-title" id="project-draft-title"><?= e(t('project.draft_title')) ?></h2>
-            <p class="small muted"><?= e(t('project.draft_intro')) ?></p>
+        <section class="card" aria-labelledby="project-ai-title">
+            <h2 class="panel-title" id="project-ai-title"><?= e(t('project.ai_title')) ?></h2>
+            <p class="small muted"><?= e(t('project.ai_intro')) ?></p>
+
+            <ul class="summary-list ai-readiness" aria-label="<?= e(t('project.ai_readiness_title')) ?>">
+                <li class="summary-list__item">
+                    <span class="summary-list__main">
+                        <strong><?= e(t('project.ai_condition_engine')) ?></strong>
+                        <?php if (!$conditions['engine']['ok']): ?>
+                            <span class="admin-muted"><?= e(t('project.ai_condition_engine_fix')) ?></span>
+                        <?php endif; ?>
+                    </span>
+                    <span class="badge <?= $conditions['engine']['ok'] ? '' : 'badge--neutral' ?>">
+                        <?= e($conditions['engine']['ok'] ? t('project.ai_condition_ok') : t('project.ai_condition_blocked')) ?>
+                    </span>
+                </li>
+                <li class="summary-list__item">
+                    <span class="summary-list__main">
+                        <strong><?= e(t('project.ai_condition_template')) ?></strong>
+                        <?php if (!$conditions['template']['ok']): ?>
+                            <span class="admin-muted"><?= e(t('project.ai_condition_template_fix')) ?></span>
+                        <?php elseif ($conditions['template']['label'] !== null): ?>
+                            <span class="admin-muted"><?= e((string) $conditions['template']['label']) ?></span>
+                        <?php endif; ?>
+                    </span>
+                    <span class="badge <?= $conditions['template']['ok'] ? '' : 'badge--neutral' ?>">
+                        <?= e($conditions['template']['ok'] ? t('project.ai_condition_ok') : t('project.ai_condition_blocked')) ?>
+                    </span>
+                </li>
+                <li class="summary-list__item">
+                    <span class="summary-list__main">
+                        <strong><?= e(t('project.ai_condition_fact_sheet')) ?></strong>
+                        <?php if (!$conditions['fact_sheet']['ok']): ?>
+                            <span class="admin-muted"><?= e(t('project.ai_condition_fact_sheet_fix')) ?></span>
+                        <?php else: ?>
+                            <span class="admin-muted">
+                                <?= e(t('project.ai_condition_fact_sheet_version', ['version' => (string) $conditions['fact_sheet']['version']])) ?>
+                            </span>
+                        <?php endif; ?>
+                    </span>
+                    <span class="badge <?= $conditions['fact_sheet']['ok'] ? '' : 'badge--neutral' ?>">
+                        <?= e($conditions['fact_sheet']['ok'] ? t('project.ai_condition_ok') : t('project.ai_condition_blocked')) ?>
+                    </span>
+                </li>
+            </ul>
+
+            <?php if ($ai['allowed']): ?>
+                <div class="alert alert--success" role="status"><?= e(t('project.ai_ready')) ?></div>
+            <?php else: ?>
+                <div class="alert alert--warning" role="status" id="project-ai-blocked">
+                    <strong><?= e(t('project.ai_blocked_title')) ?></strong>
+                    <?php if ($ai['reason_key'] !== null): ?>
+                        <?= e(t((string) $ai['reason_key'], $ai['reason_params'])) ?>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
 
             <?php if ($latestDraft !== null): ?>
                 <p>
@@ -73,40 +148,131 @@ $latestDraft = $draftState['latest_draft'];
                 <p class="small muted"><?= e(t('project.draft_none')) ?></p>
             <?php endif; ?>
 
-            <?php if ($draftState['can_edit']): ?>
+            <?php if ($ai['can_edit']): ?>
                 <form class="inline-form" method="post" action="<?= e(url('/projects/' . (string) $project['id'] . '/draft/generate')) ?>">
                     <?= csrf_field() ?>
-                    <?php if ($draftState['allowed']): ?>
+                    <?php if ($ai['allowed']): ?>
                         <button class="btn" type="submit"><?= e(t('project.generate_draft')) ?></button>
                     <?php else: ?>
-                        <button class="btn" type="submit" disabled aria-describedby="draft-generate-reason">
+                        <button class="btn" type="submit" disabled aria-describedby="project-ai-blocked">
                             <?= e(t('project.generate_draft')) ?>
                         </button>
                     <?php endif; ?>
                 </form>
-                <?php if (!$draftState['allowed'] && $draftState['reason_key'] !== null): ?>
-                    <p class="small muted" id="draft-generate-reason">
-                        <?= e(t((string) $draftState['reason_key'], $draftState['reason_params'])) ?>
-                    </p>
-                <?php endif; ?>
+                <p class="small muted"><?= e(t('project.ai_generate_note')) ?></p>
             <?php else: ?>
                 <p class="small muted mb-0"><?= e(t('project.generate_viewer_note')) ?></p>
             <?php endif; ?>
+
+            <?php if ($ai['can_edit']): ?>
+                <h3 class="panel-title"><?= e(t('project.ai_inputs_title')) ?></h3>
+                <p class="small muted"><?= e(t('project.ai_inputs_intro')) ?></p>
+                <form class="form" method="post" enctype="multipart/form-data"
+                    action="<?= e(url('/projects/' . (string) $project['id'] . '/inputs')) ?>">
+                    <?= csrf_field() ?>
+                    <div class="field">
+                        <label for="project-input-text"><?= e(t('project.ai_input_text_label')) ?></label>
+                        <textarea id="project-input-text" name="text" rows="4" maxlength="20000"
+                            placeholder="<?= e(t('project.ai_input_text_placeholder')) ?>"></textarea>
+                    </div>
+                    <div class="field">
+                        <label for="project-input-file"><?= e(t('project.ai_input_file_label')) ?></label>
+                        <input id="project-input-file" type="file" name="attachment" accept=".txt,.md">
+                        <span class="form__meta"><?= e(t('project.ai_input_file_hint')) ?></span>
+                    </div>
+                    <div class="form__actions">
+                        <button class="btn btn--secondary" type="submit"><?= e(t('project.ai_input_submit')) ?></button>
+                    </div>
+                </form>
+            <?php endif; ?>
+
+            <h3 class="panel-title">
+                <?= e(t('project.ai_inputs_latest')) ?>
+                <span class="small muted"><?= e(t('project.ai_inputs_count', ['count' => (string) $ai['inputs']['count']])) ?></span>
+            </h3>
+            <?php if ($ai['inputs']['rows'] === []): ?>
+                <p class="small muted mb-0"><?= e(t('project.ai_inputs_empty')) ?></p>
+            <?php else: ?>
+                <ul class="summary-list">
+                    <?php foreach ($ai['inputs']['rows'] as $input): ?>
+                        <li class="summary-list__item">
+                            <span class="summary-list__main">
+                                <strong>
+                                    <?= e($input['kind'] === 'document' ? t('project.ai_input_kind_document') : t('project.ai_input_kind_text')) ?>
+                                    <?php if ($input['filename'] !== null): ?>
+                                        · <?= e((string) $input['filename']) ?>
+                                    <?php endif; ?>
+                                </strong>
+                                <?php if ($input['excerpt'] !== ''): ?>
+                                    <span class="admin-muted"><?= e((string) $input['excerpt']) ?></span>
+                                <?php endif; ?>
+                            </span>
+                            <span class="admin-muted"><?= e(format_date((string) $input['created_at'])) ?></span>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+
+            <h3 class="panel-title"><?= e(t('project.ai_drafts_title')) ?></h3>
+            <?php if ($ai['drafts'] === []): ?>
+                <p class="small muted mb-0"><?= e(t('project.ai_drafts_empty')) ?></p>
+            <?php else: ?>
+                <ul class="summary-list">
+                    <?php foreach ($ai['drafts'] as $draft): ?>
+                        <li class="summary-list__item">
+                            <span class="summary-list__main">
+                                <a href="<?= e(url('/drafts/' . (string) $draft['id'])) ?>">
+                                    <?= e(t('project.ai_draft_version', ['version' => (string) $draft['version']])) ?>
+                                </a>
+                                <span class="admin-muted"><?= e(format_date((string) $draft['created_at'])) ?></span>
+                            </span>
+                            <span class="badge badge--draft"><?= e(t('common.draft_badge')) ?></span>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
         </section>
 
-        <section class="card">
-            <h2 class="panel-title"><?= e(t('project.pipeline_title')) ?></h2>
-            <div class="pipeline">
-                <?php foreach ($pipeline as $index => $step): ?>
-                    <div class="pipeline__item">
-                        <span class="pipeline__num" aria-hidden="true"><?= e((string) ($index + 1)) ?></span>
-                        <div class="pipeline__body">
-                            <strong><?= e($step['label']) ?></strong>
-                            <span><?= e(t('project.pipeline_coming')) ?></span>
-                        </div>
-                    </div>
+        <section class="card" aria-labelledby="project-pipeline-title">
+            <h2 class="panel-title" id="project-pipeline-title"><?= e(t('project.pipeline_title')) ?></h2>
+            <p class="small muted">
+                <?= e(t('project.ai_pipeline_progress', [
+                    'done' => (string) $pipeline['done'],
+                    'total' => (string) $pipeline['total'],
+                ])) ?>
+            </p>
+            <progress class="pipeline-progress" max="<?= e((string) $pipeline['total']) ?>"
+                value="<?= e((string) $pipeline['done']) ?>"
+                aria-label="<?= e(t('project.ai_pipeline_progress', [
+                    'done' => (string) $pipeline['done'],
+                    'total' => (string) $pipeline['total'],
+                ])) ?>">
+                <?= e((string) $pipeline['done']) ?>/<?= e((string) $pipeline['total']) ?>
+            </progress>
+
+            <ol class="pipeline-steps">
+                <?php foreach ($pipeline['steps'] as $step): ?>
+                    <?php
+                    $stepKey = (string) $step['key'];
+                    $isDone = (bool) $step['done'];
+                    $isCurrent = $pipeline['current'] === $stepKey;
+                    $isFuture = (bool) ($step['future'] ?? false);
+                    $classes = 'pipeline-step';
+                    $classes .= $isDone ? ' is-done' : '';
+                    $classes .= (!$isDone && $isCurrent) ? ' is-current' : '';
+                    $classes .= $isFuture ? ' is-future' : '';
+                    ?>
+                    <li class="<?= e($classes) ?>"<?= $isCurrent ? ' aria-current="step"' : '' ?>>
+                        <span class="pipeline-step__bubble" aria-hidden="true">
+                            <?= $isDone ? '&#10003;' : e((string) $step['index']) ?>
+                        </span>
+                        <span class="pipeline-step__body">
+                            <strong class="pipeline-step__label"><?= e($pipelineLabels[$stepKey] ?? $stepKey) ?></strong>
+                            <span class="pipeline-step__hint"><?= e($pipelineHint($step, (string) $pipeline['current'])) ?></span>
+                        </span>
+                    </li>
                 <?php endforeach; ?>
-            </div>
+            </ol>
         </section>
 
         <section class="card">

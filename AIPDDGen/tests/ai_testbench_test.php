@@ -480,4 +480,165 @@ return [
         assert_false(str_contains($markup, '<style>'), 'no inline style (CSP self)');
         assert_false(str_contains($markup, 'javascript:'), 'no javascript: URLs');
     },
+
+    'admin page renders four server-side tabs, unique ids and no key material' => static function (): void {
+        tb_use_secret();
+        $staff = tb_staff('tb-tabs@example.com');
+        $staffId = (string) $staff['user']['id'];
+        tb_configure_engine($staff, 'sk-review-secret-9876');
+        AiEngineTestbenchService::saveExample($staffId, [
+            'registry' => 'gold_standard',
+            'title' => 'Review example',
+            'input_text' => 'Sample input for the tabs render test.',
+            'output_text' => 'Sample output for the tabs render test.',
+        ]);
+
+        $render = static function (string $activeTab) use ($staff, $staffId): string {
+            return \App\View::capture('pages/admin/ai', [
+                'user' => $staff['user'],
+                'activeTab' => $activeTab,
+                'settings' => AiEngineService::publicSettings(),
+                'errors' => [],
+                'taskBadge' => 0,
+                'bench' => [
+                    'result' => [
+                        'output' => 'Sample output for the tabs render test.',
+                        'model' => 'gpt-4o-mini',
+                        'latency_ms' => 123,
+                        'registry' => 'gold_standard',
+                        'input_text' => 'Sample input for the tabs render test.',
+                        'expected_output' => '',
+                    ],
+                    'form' => [],
+                    'examples' => AiEngineTestbenchService::examples($staffId),
+                    'registries' => AiEngineTestbenchService::REGISTRIES,
+                    'max_input_chars' => AiEngineTestbenchService::MAX_INPUT_CHARS,
+                    'max_upload_kb' => (int) (AiEngineTestbenchService::MAX_UPLOAD_BYTES / 1024),
+                    'budget_chars' => AiEngineTestbenchService::MAX_EXAMPLE_PROMPT_CHARS,
+                    'max_examples' => AiEngineTestbenchService::MAX_EXAMPLES_IN_PROMPT,
+                ],
+            ]);
+        };
+
+        // One wrapper per panel; the bench tab owns two panels.
+        $panels = [
+            'overview' => '#<div class="ai-overview-grid"( hidden)?>#',
+            'settings' => '#<section class="panel-card" aria-labelledby="ai-settings-title"( hidden)?>#',
+            'skill' => '#<section class="panel-card" aria-labelledby="ai-skills-title"( hidden)?>#',
+            'bench' => '#<section class="panel-card" id="test-bench" aria-labelledby="ai-bench-title"( hidden)?>#',
+            'examples' => '#<section class="panel-card" id="examples" aria-labelledby="ai-examples-title"( hidden)?>#',
+        ];
+        $activeTabForPanel = ['overview' => 'overview', 'settings' => 'settings', 'skill' => 'skill', 'bench' => 'bench', 'examples' => 'bench'];
+
+        foreach (\App\Controllers\AiEngineController::TABS as $tab) {
+            $markup = $render($tab);
+            $context = 'on the ' . $tab . ' tab';
+
+            // Plain-link tab nav: all four tabs, exactly one active (aria-current).
+            foreach (\App\Controllers\AiEngineController::TABS as $navTab) {
+                assert_contains('?tab=' . $navTab, $markup, 'tab nav link ' . $navTab . ' ' . $context);
+            }
+            assert_same(1, preg_match_all('/aria-current="page"/', $markup), 'exactly one active tab ' . $context);
+            assert_same(
+                1,
+                preg_match('#href="[^"]*\?tab=' . $tab . '" aria-current="page"#', $markup),
+                'aria-current must be on the ' . $tab . ' nav link ' . $context,
+            );
+
+            // Only the active tab's panels are visible; the rest stay in the DOM
+            // hidden so deep links and no-JS navigation keep working.
+            foreach ($panels as $panelTab => $pattern) {
+                assert_same(1, preg_match($pattern, $markup, $panelMatch), 'panel ' . $panelTab . ' must render ' . $context);
+                $isHidden = ($panelMatch[1] ?? '') !== '';
+                if ($activeTabForPanel[$panelTab] === $tab) {
+                    assert_false($isHidden, 'active panel ' . $panelTab . ' must not be hidden ' . $context);
+                } else {
+                    assert_true($isHidden, 'inactive panel ' . $panelTab . ' must be hidden ' . $context);
+                }
+            }
+
+            // Unique ids even though every tab stays in the DOM.
+            assert_true(preg_match_all('/\sid="([^"]+)"/', $markup, $idMatches) > 0, 'ids found ' . $context);
+            assert_same(
+                count($idMatches[1]),
+                count(array_unique($idMatches[1])),
+                'duplicate ids found ' . $context,
+            );
+
+            // The API key is write-only: only the masked last four characters.
+            assert_false(str_contains($markup, 'sk-review-secret-9876'), 'plaintext API key must never render ' . $context);
+            assert_false(str_contains($markup, 'api_key_ciphertext'), 'ciphertext must never render ' . $context);
+            assert_contains('9876', $markup, 'only the masked key suffix renders ' . $context);
+
+            // CSP self: external same-origin assets, no inline script/style/handlers.
+            assert_false(str_contains($markup, '<script>'), 'no inline script ' . $context);
+            assert_false((bool) preg_match('/\sstyle="/', $markup), 'no inline style attribute ' . $context);
+            assert_false((bool) preg_match('/\son(click|submit|change|input|load)="/', $markup), 'no inline event handlers ' . $context);
+            assert_contains('ai-bench.js', $markup, 'external bench script ' . $context);
+            assert_contains('ai-bench.css', $markup, 'external bench stylesheet ' . $context);
+
+            // Every form keeps its CSRF token and its existing endpoint.
+            // Test connection is a submit button inside the Settings form
+            // (formaction), not a separate form, so there are 6 forms now.
+            assert_same(6, preg_match_all('/<form\b/', $markup), 'six forms ' . $context);
+            assert_same(6, preg_match_all('/name="_csrf"/', $markup), 'every form keeps CSRF ' . $context);
+            assert_contains('/admin/ai/test"', $markup, 'connection test endpoint ' . $context);
+            assert_contains('/admin/ai/test-input"', $markup, 'bench run endpoint ' . $context);
+            assert_contains('/admin/ai/examples"', $markup, 'example save endpoint ' . $context);
+            assert_contains('/toggle"', $markup, 'example toggle endpoint ' . $context);
+            assert_contains('/delete"', $markup, 'example delete endpoint ' . $context);
+            assert_same(2, preg_match_all('/enctype="multipart\/form-data"/', $markup), 'skill and bench forms stay multipart ' . $context);
+
+            // Field names, ids and tab markers from the pre-redesign contract.
+            foreach (['provider', 'base_url', 'model', 'temperature', 'max_tokens', 'api_key', 'enabled',
+                'skill_gold_standard', 'skill_verra_vcs', 'global_instructions',
+                'registry', 'input_text', 'expected_output', 'title'] as $name) {
+                assert_contains('name="' . $name . '"', $markup, 'field ' . $name . ' kept ' . $context);
+            }
+            assert_contains('name="_tab" value="settings"', $markup, 'settings form tab marker ' . $context);
+            assert_contains('name="_tab" value="skill"', $markup, 'skill form tab marker ' . $context);
+
+            // Bench anchors + progress hooks stay verbatim for ai-bench.js.
+            assert_contains('id="test-bench"', $markup, 'bench anchor ' . $context);
+            assert_contains('id="examples"', $markup, 'examples anchor ' . $context);
+            foreach (['data-ai-bench-form', 'id="bench-progress"', 'data-bench-bar', 'data-bench-label',
+                'data-bench-elapsed', 'data-bench-submit', 'data-stylesheet'] as $hook) {
+                assert_contains($hook, $markup, 'bench hook ' . $hook . ' kept ' . $context);
+            }
+        }
+
+        // An invalid ?tab falls back to overview (plain-link tabs, no redirect).
+        $invalid = $render('bogus');
+        assert_same(1, preg_match_all('/aria-current="page"/', $invalid), 'invalid tab renders exactly one active tab');
+        assert_same(1, preg_match('#href="[^"]*\?tab=overview" aria-current="page"#', $invalid), 'invalid tab falls back to overview');
+
+        // PRG contract: each action returns to its tab; save origin is explicit.
+        $controller = \App\Controllers\AiEngineController::class;
+        assert_same('overview', $controller::normaliseTab('bogus'));
+        assert_same('/admin/ai?tab=settings', $controller::redirectPath('save', ['_tab' => 'settings'], []));
+        assert_same('/admin/ai?tab=skill', $controller::redirectPath('save', ['_tab' => 'skill'], []));
+        assert_same('/admin/ai?tab=skill', $controller::redirectPath('save', ['skill_gold_standard' => 'x'], []));
+        assert_same('/admin/ai?tab=overview', $controller::redirectPath('test_connection'));
+        assert_same('/admin/ai?tab=bench#test-bench', $controller::redirectPath('bench_run'));
+    },
+
+    'bench actions redirect back to the bench tab (query-only tabs)' => static function (): void {
+        $controller = \App\Controllers\AiEngineController::class;
+
+        assert_same('bench', $controller::normaliseTab('bench'));
+        assert_true(in_array('bench', $controller::TABS, true), 'bench is a server-side tab');
+
+        // Every bench action returns to ?tab=bench (anchors preserved), and the
+        // side-effect-free connection test returns to overview instead.
+        assert_same('/admin/ai?tab=bench#test-bench', $controller::redirectPath('bench_run'));
+        foreach (['example_save', 'example_toggle', 'example_delete'] as $action) {
+            $path = $controller::redirectPath($action);
+            assert_contains('?tab=bench', $path, $action . ' lands on the bench tab');
+            assert_contains('#examples', $path, $action . ' keeps the examples anchor');
+        }
+        assert_same('/admin/ai?tab=overview', $controller::redirectPath('test_connection'));
+        // A non-form tab in the hidden _tab field is ignored (settings is the fallback).
+        assert_same('settings', $controller::saveOrigin(['_tab' => 'bench', 'provider' => 'openai'], []));
+        assert_same('bench', $controller::normaliseTab($controller::TABS[3] ?? ''));
+    },
 ];

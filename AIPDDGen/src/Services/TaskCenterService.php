@@ -159,6 +159,12 @@ final class TaskCenterService
         self::assertStaff($userId);
         $task = self::requireOpenTask($taskId);
 
+        // KYC work needs a decision, not a bare "complete": completing the task
+        // without verifying/rejecting would leave the profile stuck in review.
+        if ((string) $task['work_type'] === 'organisation_kyb') {
+            throw AppError::conflict('Review this organisation on the KYC queue (/admin/kyc): verify it or request changes.');
+        }
+
         if ($task['assigned_user_id'] !== null && (string) $task['assigned_user_id'] !== $userId) {
             throw AppError::conflict('This task is assigned to someone else.');
         }

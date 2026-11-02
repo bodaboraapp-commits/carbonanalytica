@@ -135,6 +135,7 @@ return [
         $staffId = (string) $staff['user']['id'];
         $task = make_task($staffId, (string) $staff['team']['id'], [
             'title' => 'Overdue task',
+            'work_type' => 'template_review',
             'assigned_user_id' => $staffId,
             'due_at' => gmdate('Y-m-d H:i:s', time() - 3 * 86400),
         ]);
@@ -154,7 +155,7 @@ return [
     'refuses to complete a closed task' => static function (): void {
         $staff = make_staff('closed@example.com');
         $staffId = (string) $staff['user']['id'];
-        $task = make_task($staffId, (string) $staff['team']['id']);
+        $task = make_task($staffId, (string) $staff['team']['id'], ['work_type' => 'template_review']);
 
         TaskCenterService::complete((string) $task['id'], $staffId);
 

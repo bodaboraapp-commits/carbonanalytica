@@ -3,6 +3,11 @@
 declare(strict_types=1);
 
 /**
+ * Template library (staff only): every template version with its source,
+ * publication state and the per-version SKILL.md requirement. New template
+ * versions are created from the "Add template" panel; a version starts with a
+ * PENDING SKILL.md, which blocks drafting until an admin uploads it.
+ *
  * @var array<string, mixed> $user
  * @var array{rows: list<array<string,mixed>>, counts: array<string,int>} $templates
  * @var int $taskBadge
@@ -24,12 +29,77 @@ $registryLabel = static function (?string $registry): string {
         default => (string) $registry,
     };
 };
+$skillBadge = static function (?string $skillStatus): string {
+    return match ($skillStatus) {
+        \App\Services\TemplateLibraryService::SKILL_STATUS_READY => 'badge--normal',
+        \App\Services\TemplateLibraryService::SKILL_STATUS_PENDING => 'badge--high',
+        default => 'badge--neutral',
+    };
+};
+$skillLabel = static function (?string $skillStatus): string {
+    return match ($skillStatus) {
+        \App\Services\TemplateLibraryService::SKILL_STATUS_READY => t('template.skill_ready'),
+        \App\Services\TemplateLibraryService::SKILL_STATUS_PENDING => t('template.skill_pending'),
+        default => t('ai.skill_missing'),
+    };
+};
 ?>
 <div class="admin-page-head">
     <div>
         <h1><?= e(t('console.templates_title')) ?></h1>
         <p><?= e(t('console.templates_sub')) ?></p>
     </div>
+    <details class="template-add">
+        <summary class="btn btn--secondary btn--sm"><?= e(t('template.add_title')) ?></summary>
+        <div class="template-add__body">
+            <h2 class="template-add__title"><?= e(t('template.add_title')) ?></h2>
+            <p class="admin-muted small"><?= e(t('template.add_sub')) ?></p>
+            <form class="form" method="post" action="<?= e(url('/admin/templates')) ?>" enctype="multipart/form-data" novalidate>
+                <?= csrf_field() ?>
+                <div class="template-add__grid">
+                    <div class="field">
+                        <label for="template-add-name"><?= e(t('template.add_name')) ?></label>
+                        <input id="template-add-name" name="name" type="text" maxlength="200" required>
+                    </div>
+                    <div class="field">
+                        <label for="template-add-registry"><?= e(t('template.add_registry')) ?></label>
+                        <select id="template-add-registry" name="registry" required>
+                            <?php foreach (\App\Services\TemplateLibraryService::TEMPLATE_REGISTRIES as $registrySlug): ?>
+                                <option value="<?= e($registrySlug) ?>"><?= e($registryLabel($registrySlug)) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="template-add-language"><?= e(t('template.add_language')) ?></label>
+                        <select id="template-add-language" name="language">
+                            <?php foreach (\App\Services\TemplateLibraryService::TEMPLATE_LANGUAGES as $languageSlug): ?>
+                                <option value="<?= e($languageSlug) ?>"><?= e(strtoupper($languageSlug)) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="template-add-version"><?= e(t('template.add_version_label')) ?></label>
+                        <input id="template-add-version" name="version_label" type="text" maxlength="40" value="v1.0">
+                    </div>
+                    <div class="field">
+                        <label for="template-add-methodology"><?= e(t('template.add_methodology')) ?></label>
+                        <input id="template-add-methodology" name="methodology_code" type="text" maxlength="40">
+                    </div>
+                    <div class="field">
+                        <label for="template-add-source"><?= e(t('template.add_source')) ?></label>
+                        <input id="template-add-source" name="source" type="file" accept=".pdf,.docx,.md,.txt" required>
+                    </div>
+                    <div class="field template-add__wide">
+                        <label for="template-add-description"><?= e(t('template.add_description')) ?></label>
+                        <textarea id="template-add-description" name="description" rows="2" maxlength="2000"></textarea>
+                    </div>
+                </div>
+                <div class="form__actions">
+                    <button class="btn" type="submit"><?= e(t('template.add_submit')) ?></button>
+                </div>
+            </form>
+        </div>
+    </details>
 </div>
 
 <section class="stat-grid stat-grid--3" aria-labelledby="templates-kpi-title">
@@ -41,7 +111,10 @@ $registryLabel = static function (?string $registry): string {
 
 <section class="panel-card">
     <?php if ($templates['rows'] === []): ?>
-        <div class="admin-empty"><p class="admin-empty__title"><?= e(t('console.no_templates')) ?></p></div>
+        <div class="admin-empty">
+            <p class="admin-empty__title"><?= e(t('console.no_templates')) ?></p>
+            <p class="admin-empty__body"><?= e(t('template.add_sub')) ?></p>
+        </div>
     <?php else: ?>
         <div class="table-wrap">
             <table class="data admin-table">
@@ -55,6 +128,7 @@ $registryLabel = static function (?string $registry): string {
                         <th scope="col"><?= e(t('console.table_sections')) ?></th>
                         <th scope="col"><?= e(t('console.table_fields')) ?></th>
                         <th scope="col"><?= e(t('console.table_status')) ?></th>
+                        <th scope="col"><?= e(t('template.skill_title')) ?></th>
                         <th scope="col"><?= e(t('console.table_manage')) ?></th>
                     </tr>
                 </thead>
@@ -63,6 +137,7 @@ $registryLabel = static function (?string $registry): string {
                         <?php
                         $versionId = (string) $row['id'];
                         $status = (string) $row['status'];
+                        $skillStatus = \App\Services\TemplateLibraryService::skillStatusForVersion($versionId);
                         $manageLabel = t('template.manage_button') . ' — ' . (string) $row['template_name'] . ' ' . (string) $row['version_label'];
                         ?>
                         <tr>
@@ -76,6 +151,9 @@ $registryLabel = static function (?string $registry): string {
                             <td><?= e((string) $row['sections']) ?></td>
                             <td><?= e((string) $row['fields']) ?></td>
                             <td><span class="badge <?= e($badge($status)) ?>"><?= e(t('console.template_status_' . $status)) ?></span></td>
+                            <td class="template-skill-cell">
+                                <span class="badge <?= e($skillBadge($skillStatus)) ?>"><?= e($skillLabel($skillStatus)) ?></span>
+                            </td>
                             <td>
                                 <div class="template-manage">
                                     <details class="template-manage__disclosure" data-manage>
@@ -92,6 +170,24 @@ $registryLabel = static function (?string $registry): string {
                                                 <p class="template-manage__hint"><?= e(t('template.upload_hint')) ?></p>
                                                 <button class="btn btn--sm" type="submit"><?= e(t('template.upload_button')) ?></button>
                                             </form>
+
+                                            <div class="template-manage__skill">
+                                                <p class="template-manage__title">
+                                                    <?= e(t('template.skill_title')) ?> —
+                                                    <span class="badge <?= e($skillBadge($skillStatus)) ?>"><?= e($skillLabel($skillStatus)) ?></span>
+                                                </p>
+                                                <form class="template-manage__form" method="post" enctype="multipart/form-data"
+                                                    action="<?= e(url('/admin/templates/' . $versionId . '/skill')) ?>">
+                                                    <?= csrf_field() ?>
+                                                    <label for="template-skill-<?= e($versionId) ?>"><?= e(t('template.skill_upload_label')) ?></label>
+                                                    <input id="template-skill-<?= e($versionId) ?>" type="file" name="skill"
+                                                        accept=".md,text/markdown" required>
+                                                    <p class="template-manage__hint"><?= e(t('template.skill_hint')) ?></p>
+                                                    <button class="btn btn--sm" type="submit">
+                                                        <?= e($skillStatus === \App\Services\TemplateLibraryService::SKILL_STATUS_READY ? t('ai.skill_upload_replace') : t('template.skill_upload_button')) ?>
+                                                    </button>
+                                                </form>
+                                            </div>
 
                                             <?php if ($status === 'draft' || $status === 'published'): ?>
                                                 <form class="template-manage__form" method="post"

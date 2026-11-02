@@ -63,14 +63,25 @@ One current file per kind (`UNIQUE (team_id, kind)`). Uploading again replaces t
 ## Status flow and lock
 
 ```
-draft ──submit──▶ submitted ──(admin review, later step)──▶ verified
-   ▲                                                          │
-   └──────────────────── rejected (with a review note) ◀──────┘
+draft ──submit──▶ submitted ──staff verify──▶ verified
+   ▲                  │
+   │                  └──staff reject (reason required)──▶ rejected
+   │                                                          │
+   └────────────────────── resubmit ◀────────────────────────┘
 ```
 
-While `submitted` or `verified` the profile is locked: every write path (`saveOrganization`, `saveContact`, `uploadDocument`, `deleteDocument`, `submit`) raises a conflict. A `rejected` profile becomes editable again; `review_note` is shown to the workspace. The admin review console itself is a later step — today the columns (`reviewed_at`, `review_note`) exist but nothing writes them.
+While `submitted` or `verified` the profile is locked: every write path (`saveOrganization`, `saveContact`, `uploadDocument`, `deleteDocument`, `submit`) raises a conflict. A `rejected` profile becomes editable again; the rejection reason is shown to the workspace and a **fresh review task** is created when the profile is submitted again. The previous review note stays visible in the submitted banner until the next decision replaces it.
 
 Submission also records the attestation (`attested_at`, `attested_by_user_id`): the submitting admin confirms the information is accurate and that they are authorised.
+
+## Admin review (`/admin/kyc`, staff only)
+
+Staff decide on a submitted profile from the KYC queue: plain `?status=submitted|verified|rejected|all` filter chips plus a per-row `<details>` **Review decision** panel with two no-JS forms (`POST /admin/kyc/{profileId}/verify` and `/admin/kyc/{profileId}/reject`, CSRF protected).
+
+- **Verify**: optional approval note (≤500 characters). Profile becomes `verified`, `reviewed_at` is set, the tenant stays locked.
+- **Reject**: reason is **required** (≤500 characters, inline field error); the profile becomes `rejected`, unlocks for editing, and the reason is shown on the tenant onboarding banner and dashboard, together with an **Update & resubmit** CTA.
+- The decision also completes the open `organisation_kyb` review task (the generic job-queue Complete action refuses KBY tasks and points staff to the KYC queue), and records audit entries.
+- The primary contact (`organization_profiles.contact_email`) receives an EN/FR outcome email in the workspace owner's locale; email delivery is recorded in `email_outbox` and a mail failure never rolls back the recorded decision.
 
 ## Data
 
@@ -79,7 +90,7 @@ Two tables (see [data model](data-model.md#36-organization-onboarding-product-ow
 - `organization_profiles` — one row per team (`UNIQUE team_id`), created lazily on first save.
 - `organization_documents` — one row per document kind, with original filename, storage key, MIME type, size and SHA-256 checksum.
 
-`registration_country` is stored as **free text** at launch (up to 80 characters) so any jurisdiction can onboard. ISO-3166 code normalisation belongs with the admin review console, when the country list can be curated and translated once.
+`registration_country` is stored as **free text** at launch (up to 80 characters) so any jurisdiction can onboard. ISO-3166 code normalisation remains a follow-up in the review console.
 
 ## Audit events
 
@@ -89,19 +100,23 @@ Two tables (see [data model](data-model.md#36-organization-onboarding-product-ow
 | `organization.document.uploaded` | Document stored (`kind`, `filename`, `size_bytes`, `replaced`). |
 | `organization.document.deleted` | Document removed (`kind`). |
 | `organization.submitted` | Profile sent for verification (`legal_name`). |
+| `organization.verified` | Staff approved the profile on the KYC queue (`note_length`, `tasks_closed`). |
+| `organization.rejected` | Staff requested changes (`note_length`, `tasks_closed`; the reason is in `review_note`, not the audit metadata). |
+| `review_task.completed` | A decision closed the linked `organisation_kyb` review task (`work_type`, `by=kyc_decision`). |
 
 ## Verification
 
 - `tests/organization_onboarding_test.php` — 11 tests: step completion, validation (required fields, year, URL, email, phone), required-document gating, submit/lock/audit, role rules (viewer forbidden), tenant isolation (cross-workspace profile and document ids resolve to 404), document delete/replace, extension rejection.
+- `tests/kyc_review_test.php` — 7 tests for the full decision cycle: verify/lock/audit/email, reject requires a reason and reopens editing, the tenant sees the note and resubmit CTA, resubmission creates a fresh task, the generic complete is guarded, staff-only single-shot decisions, queue filters/counts and the rendered admin screen.
 - `tests/schema_test.php` — expected table list includes `organization_profiles` and `organization_documents`.
 - `lang/en.php` + `lang/fr.php` — all copy in both languages; key parity is enforced by `tests/unit_i18n_test.php`.
 - `tools/e2e-smoke.ps1` — HTTP-level checks: the wizard renders and starts at step 1, organization and contact details save and advance the wizard, an editor gets the permission message instead of a save, three real multipart uploads land and count 3/3, submission requires the attestation, the submitted profile is locked (no upload forms), the declaration template and an uploaded document download with the right content type.
 
 ## Known limitations / follow-ups
 
-- **No admin review UI yet.** Status `verified`/`rejected` and the review note are modelled, but only a later step (admin console) can set them. Until then, submissions stay `submitted`.
-- **No file preview inline for DOC/DOCX.** Browsers download them; the view link states this.
+- **No inline file preview for DOC/DOCX.** Browsers download them; the view link states this.
 - **No drag-and-drop JavaScript.** The upload zone is a labelled file input: forms keep working without JavaScript, matching the rest of the app.
 - **No virus scanning or OCR.** Documents are stored as uploaded; a scanner belongs with the production storage adapter.
 - **No retention/erasure job** for rejected or replaced documents beyond immediate deletion of the replaced file. Workspace deletion cascades rows; the 30-day purge job is step 10.
-- **Country free text** (see above) needs ISO normalisation in the review console.
+- **One outcome email only**: no reminders, no reviewer assignment notifications. The decision itself is visible in the tenant workspace without email.
+

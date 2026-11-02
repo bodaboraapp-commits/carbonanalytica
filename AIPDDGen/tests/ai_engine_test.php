@@ -18,6 +18,7 @@ use App\Services\AiEngineService;
 use App\Services\DraftService;
 use App\Services\LlmClient;
 use App\Services\ProjectService;
+use App\Services\TemplateLibraryService;
 use App\Uuid;
 
 function ai_test_secret_value(): string
@@ -1094,5 +1095,413 @@ return [
         $second = DraftService::generate((string) $owner['user']['id'], (string) $project['id'], $client);
         assert_same(1, (int) $first['draft']['version']);
         assert_same(2, (int) $second['draft']['version']);
+    },
+
+    'uploads markdown skill documents for all three skills' => static function (): void {
+        ai_test_use_secret();
+        $staff = ai_test_staff('skill-upload-staff@example.com');
+        $staffId = (string) $staff['user']['id'];
+
+        $makeFile = static function (string $name, string $content): array {
+            $path = (string) tempnam(APP_ROOT . '/storage/logs', 'skill-up-');
+            file_put_contents($path, $content);
+
+            return [
+                'error' => UPLOAD_ERR_OK,
+                'name' => $name,
+                'size' => strlen($content),
+                'tmp_name' => $path,
+            ];
+        };
+
+        $madePaths = [];
+        $files = [];
+        $uploads = [
+            'skill_gold_standard_file' => ['gold.md', "# Gold skill\n\nUse GS headings exactly.\n"],
+            'skill_verra_vcs_file' => ['verra.md', "# Verra skill\n\nUse VCS structure.\n"],
+            'global_instructions_file' => ['global.md', "# Global\n\nWrite concise prose.\n"],
+        ];
+
+        try {
+            // A valid .md upload replaces the textarea value for all three skills.
+            foreach ($uploads as $fileField => [$name, $content]) {
+                $file = $makeFile($name, $content);
+                $madePaths[] = $file['tmp_name'];
+                $files[$fileField] = $file;
+            }
+
+            $merged = AiEngineService::applySkillUploads([
+                'skill_gold_standard' => 'stale textarea text',
+                'skill_verra_vcs' => '',
+                'global_instructions' => '',
+            ], $files);
+
+            assert_contains('# Gold skill', $merged['skill_gold_standard']);
+            assert_contains('Use GS headings exactly.', $merged['skill_gold_standard']);
+            assert_contains('# Verra skill', $merged['skill_verra_vcs']);
+            assert_contains('# Global', $merged['global_instructions']);
+            assert_false(str_contains($merged['skill_gold_standard'], 'stale textarea text'), 'upload replaces the textarea');
+
+            // The merged input saves through the normal settings path.
+            $saved = AiEngineService::save($staffId, array_merge([
+                'provider' => 'openai',
+                'base_url' => 'https://api.openai.com/v1',
+                'model' => 'gpt-4o-mini',
+                'temperature' => '0.2',
+                'max_tokens' => '600',
+                'api_key' => 'sk-skill-upload-1234',
+                'enabled' => '1',
+            ], $merged));
+            assert_contains('Use GS headings exactly.', $saved['skill_gold_standard']);
+            assert_contains('Use VCS structure.', $saved['skill_verra_vcs']);
+            assert_contains('Write concise prose.', $saved['global_instructions']);
+        } finally {
+            foreach ($madePaths as $path) {
+                @unlink($path);
+            }
+        }
+
+        // Only .md is accepted.
+        $pdf = $makeFile('skill.pdf', '%PDF-1.4 fake');
+        try {
+            assert_app_error('validation_error', static function () use ($pdf): void {
+                AiEngineService::applySkillUploads([], ['skill_gold_standard_file' => $pdf]);
+            });
+        } finally {
+            @unlink($pdf['tmp_name']);
+        }
+
+        // Oversized uploads are refused before reading them.
+        assert_app_error('validation_error', static function (): void {
+            AiEngineService::applySkillUploads([], [
+                'skill_verra_vcs_file' => [
+                    'error' => UPLOAD_ERR_OK,
+                    'name' => 'big.md',
+                    'size' => AiEngineService::SKILL_UPLOAD_MAX_BYTES + 1,
+                    'tmp_name' => __FILE__,
+                ],
+            ]);
+        });
+
+        // Empty markdown is refused; no file at all simply leaves input untouched.
+        $empty = $makeFile('empty.md', "  \n");
+        try {
+            try {
+                AiEngineService::applySkillUploads([], ['global_instructions_file' => $empty]);
+                throw new RuntimeException('Expected an empty upload to be refused');
+            } catch (AppError $error) {
+                assert_same('validation_error', $error->errorCode);
+                assert_same('required', $error->fields['global_instructions'] ?? null);
+            }
+        } finally {
+            @unlink($empty['tmp_name']);
+        }
+        $untouched = AiEngineService::applySkillUploads(['skill_gold_standard' => 'keep me'], []);
+        assert_same('keep me', $untouched['skill_gold_standard']);
+    },
+
+    'tabbed contract validates tabs and maps PRG redirects' => static function (): void {
+        $controller = \App\Controllers\AiEngineController::class;
+
+        // ?tab= validation: only the four tabs pass; anything else → overview.
+        assert_same(['overview', 'settings', 'skill', 'bench'], $controller::TABS);
+        assert_same('overview', $controller::normaliseTab(null));
+        assert_same('overview', $controller::normaliseTab(''));
+        assert_same('overview', $controller::normaliseTab('nope'));
+        assert_same('overview', $controller::normaliseTab('Settings'));
+        assert_same('overview', $controller::normaliseTab('../settings'));
+        assert_same('overview', $controller::normaliseTab('bench#x'));
+        assert_same('overview', $controller::normaliseTab(['settings']));
+        foreach (['overview', 'settings', 'skill', 'bench'] as $tab) {
+            assert_same($tab, $controller::normaliseTab($tab), 'valid tab ' . $tab);
+        }
+
+        // Save origin: a hidden _tab wins; skill inputs/files identify the skills form.
+        assert_same('settings', $controller::saveOrigin(['_tab' => 'settings', 'provider' => 'openai'], []));
+        assert_same('skill', $controller::saveOrigin(['_tab' => 'skill'], []));
+        assert_same('settings', $controller::saveOrigin(['_tab' => 'nope', 'provider' => 'openai'], []));
+        assert_same('skill', $controller::saveOrigin(['skill_gold_standard' => 'x'], []));
+        assert_same('skill', $controller::saveOrigin(['global_instructions' => 'x'], []));
+        assert_same('skill', $controller::saveOrigin([], ['skill_verra_vcs_file' => ['error' => UPLOAD_ERR_OK]]));
+        assert_same('settings', $controller::saveOrigin(['provider' => 'openai'], []));
+
+        // PRG redirects: save → its originating tab, test → overview, bench → bench.
+        assert_same('/admin/ai?tab=settings', $controller::redirectPath('save', ['_tab' => 'settings'], []));
+        assert_same('/admin/ai?tab=skill', $controller::redirectPath('save', ['_tab' => 'skill'], []));
+        assert_same('/admin/ai?tab=skill', $controller::redirectPath('save', ['skill_gold_standard' => 'x'], []));
+        assert_same('/admin/ai?tab=overview', $controller::redirectPath('test_connection'));
+        assert_same('/admin/ai?tab=bench#test-bench', $controller::redirectPath('bench_run'));
+        foreach (['example_save', 'example_toggle', 'example_delete'] as $action) {
+            assert_same('/admin/ai?tab=bench#examples', $controller::redirectPath($action), $action);
+        }
+        assert_same('/admin/ai?tab=overview', $controller::redirectPath('unknown_action'));
+
+        // Tab nav + overview copy exists in both languages (parity via unit_i18n).
+        assert_same('AI Engine sections', t('ai.tabs_label'));
+        assert_same('Overview', t('ai.tab_overview'));
+        assert_same('Bench & training', t('ai.tab_bench'));
+        assert_same('Vue d’ensemble', \App\I18n::forLocale('fr', 'ai.tab_overview'));
+        assert_same('Paramètres', \App\I18n::forLocale('fr', 'ai.tab_settings'));
+        assert_same('Compétences', \App\I18n::forLocale('fr', 'ai.tab_skill'));
+        assert_same('Banc d’essai', \App\I18n::forLocale('fr', 'ai.tab_bench'));
+        assert_true(t('ai.overview_title') !== 'ai.overview_title', 'overview title translated');
+        assert_true(t('ai.overview_sub') !== 'ai.overview_sub', 'overview subtitle translated');
+        assert_true(t('ai.overview_note') !== 'ai.overview_note', 'overview no-JS note translated');
+
+        // Field-specific limit/counter copy for the tabbed UI (placeholders substitute).
+        assert_same('123 / 1,000 characters', t('ai.char_counter', ['used' => 123, 'max' => '1,000']));
+        assert_same('{used} / {max} caractères', \App\I18n::forLocale('fr', 'ai.char_counter'));
+        assert_same('Skill text is too long (max 100,000 characters).', t('ai.skill_too_long', ['max' => '100,000']));
+        assert_same('The uploaded Markdown file is too large (max 1,024 KB).', t('ai.skill_upload_too_large', ['max' => '1,024']));
+        assert_same('Sample input is too long (max 100,000 characters).', t('ai.bench_input_too_long', ['max' => '100,000']));
+        assert_same(
+            'Le texte de la compétence est trop long (100 000 caractères max).',
+            \App\I18n::forLocale('fr', 'ai.skill_too_long', ['max' => '100 000'])
+        );
+    },
+
+    'settings-only save keeps skills while the skills form can clear them' => static function (): void {
+        ai_test_use_secret();
+        $staff = ai_test_staff('settings-skills-bug@example.com');
+        $staffId = (string) $staff['user']['id'];
+        ai_test_configured_engine($staff);
+
+        $before = AiEngineService::publicSettings();
+        assert_true($before['skill_gold_standard'] !== '', 'fixture GS skill present');
+        assert_true($before['skill_verra_vcs'] !== '', 'fixture Verra skill present');
+        assert_true($before['global_instructions'] !== '', 'fixture global instructions present');
+
+        // Settings-only save (the Settings tab posts no skill fields): every skill
+        // must survive — this is the regression the review found.
+        $settingsOnly = AiEngineService::save($staffId, [
+            'provider' => 'openai',
+            'base_url' => 'https://api.openai.com/v1',
+            'model' => 'gpt-4o',
+            'temperature' => '0.4',
+            'max_tokens' => '900',
+            'enabled' => '1',
+        ]);
+        assert_same('gpt-4o', $settingsOnly['model']);
+        assert_same('0.40', $settingsOnly['temperature']);
+        assert_same($before['skill_gold_standard'], $settingsOnly['skill_gold_standard'], 'GS skill kept on settings save');
+        assert_same($before['skill_verra_vcs'], $settingsOnly['skill_verra_vcs'], 'Verra skill kept on settings save');
+        assert_same($before['global_instructions'], $settingsOnly['global_instructions'], 'global instructions kept on settings save');
+        $stored = AiEngineService::settings();
+        assert_same($before['skill_gold_standard'], (string) $stored['skill_gold_standard'], 'DB GS skill kept');
+        assert_same($before['global_instructions'], (string) $stored['global_instructions'], 'DB global kept');
+
+        // The skills form posts all three fields: an explicit empty string is an
+        // intentional clear, while an absent field still falls back to stored.
+        $skillsSave = AiEngineService::save($staffId, [
+            'provider' => 'openai',
+            'base_url' => 'https://api.openai.com/v1',
+            'model' => 'gpt-4o',
+            'temperature' => '0.4',
+            'max_tokens' => '900',
+            'enabled' => '1',
+            'skill_gold_standard' => '',
+            'skill_verra_vcs' => $before['skill_verra_vcs'],
+            'global_instructions' => 'New global instructions from the skills form.',
+        ]);
+        assert_same('', $skillsSave['skill_gold_standard'], 'explicitly emptied skill clears');
+        assert_same($before['skill_verra_vcs'], $skillsSave['skill_verra_vcs'], 'submitted skill saved');
+        assert_same('New global instructions from the skills form.', $skillsSave['global_instructions']);
+
+        // Combined save: settings change + one skill edit at once keeps the rest.
+        $combined = AiEngineService::save($staffId, [
+            'provider' => 'openai',
+            'base_url' => 'https://api.openai.com/v1',
+            'model' => 'gpt-4o-mini',
+            'temperature' => '0.2',
+            'max_tokens' => '700',
+            'enabled' => '1',
+            'skill_verra_vcs' => 'Updated Verra skill.',
+        ]);
+        assert_same('gpt-4o-mini', $combined['model']);
+        assert_same('', $combined['skill_gold_standard'], 'previously cleared GS skill stays cleared');
+        assert_same('Updated Verra skill.', $combined['skill_verra_vcs']);
+        assert_same('New global instructions from the skills form.', $combined['global_instructions'], 'global kept when absent');
+    },
+
+    'per-template skill resolution order blocks pending and feeds the draft prompt' => static function (): void {
+        ai_test_use_secret();
+        $staff = ai_test_staff('skill-matrix-staff@example.com');
+        $staffId = (string) $staff['user']['id'];
+        ai_test_configured_engine($staff);
+
+        $owner = make_user('skill-matrix-owner@example.com');
+        $ownerId = (string) $owner['user']['id'];
+        $template = ai_test_seed_template('gold_standard');
+        $versionId = (string) $template['version_id'];
+        $templateId = (string) $template['template_id'];
+        $project = ai_test_project($owner, ['template_version_id' => $versionId]);
+        $facts = ai_test_seed_fact_sheet((string) $project['id'], (string) $owner['team']['id'], $ownerId, [
+            ['key' => 'project.description', 'label' => 'Project description', 'columns' => ['value_text' => 'Improved cookstoves']],
+        ]);
+        $factId = (string) $facts['fact_ids']['project.description'];
+        $answer = (string) json_encode(['status' => 'generated', 'content' => 'Improved cookstoves.', 'citations' => [$factId]]);
+
+        // 1) No ai_engine_skills rows: the registry skill from settings is the fallback.
+        $legacy = AiEngineService::resolveSkill($versionId, $templateId, 'gold_standard');
+        assert_same('ready', $legacy['status']);
+        assert_same('registry_settings', $legacy['source']);
+        assert_contains('Follow the Gold Standard', $legacy['text'], 'legacy settings skill used');
+
+        $calls = [];
+        $client = ai_test_transport_client(static fn (): array => ai_test_ok_body($answer), $calls);
+        $draft = DraftService::generate($ownerId, (string) $project['id'], $client);
+        assert_same(2, $draft['counts']['generated'], 'both template sections generated');
+        $system = (string) (json_decode((string) $calls[0]['body'], true)['messages'][0]['content'] ?? '');
+        assert_contains('Follow the Gold Standard', $system, 'settings registry skill in the prompt');
+
+        // 2) A pending per-version SKILL.md blocks drafting with an actionable error.
+        $pendingId = Uuid::v4();
+        Db::insert('ai_engine_skills', [
+            'id' => $pendingId,
+            'template_id' => $templateId,
+            'template_version_id' => $versionId,
+            'registry' => 'gold_standard',
+            'name' => 'Test gold_standard PDD template v1.0',
+            'skill_text' => null,
+            'status' => 'pending',
+            'enabled' => true,
+            'created_by_user_id' => $staffId,
+        ]);
+        $pending = AiEngineService::resolveSkill($versionId, $templateId, 'gold_standard');
+        assert_same('pending', $pending['status']);
+        assert_same('template_version', $pending['source'], 'most specific row wins');
+        $readiness = DraftService::readiness($project);
+        assert_false($readiness['allowed'], 'pending skill blocks drafting');
+        assert_same('ai_engine_skill_pending', (string) $readiness['error_code']);
+        assert_contains('Test gold_standard PDD template', (string) ($readiness['message_params']['template'] ?? ''));
+        try {
+            DraftService::generate($ownerId, (string) $project['id']);
+            throw new RuntimeException('Expected the pending skill to block drafting');
+        } catch (AppError $error) {
+            assert_same('ai_engine_skill_pending', $error->errorCode);
+            assert_contains('SKILL.md', $error->getMessage());
+            assert_contains('Test gold_standard PDD template', (string) ($error->fields['template'] ?? ''));
+        }
+
+        // 3) Uploading/converting to ready marks the skill ready and it feeds the prompt.
+        $skillMarker = 'VERSION-SKILL-MARKER-' . bin2hex(random_bytes(3));
+        TemplateLibraryService::putSkillText($staffId, $versionId, "# Skill\n\n" . $skillMarker);
+        assert_same('ready', TemplateLibraryService::skillStatusForVersion($versionId));
+        $ready = AiEngineService::resolveSkill($versionId, $templateId, 'gold_standard');
+        assert_same('ready', $ready['status']);
+        assert_same('template_version', $ready['source']);
+        assert_contains($skillMarker, $ready['text']);
+        $calls = [];
+        $client = ai_test_transport_client(static fn (): array => ai_test_ok_body($answer), $calls);
+        DraftService::generate($ownerId, (string) $project['id'], $client);
+        $system = (string) (json_decode((string) $calls[0]['body'], true)['messages'][0]['content'] ?? '');
+        assert_contains($skillMarker, $system, 'ready per-version skill injected');
+
+        // 4) Without a version row, a per-template skill is next in the order.
+        Db::execute('DELETE FROM ai_engine_skills WHERE template_version_id = ?', [$versionId]);
+        $templateMarker = 'TEMPLATE-SKILL-MARKER-' . bin2hex(random_bytes(3));
+        Db::insert('ai_engine_skills', [
+            'id' => Uuid::v4(),
+            'template_id' => $templateId,
+            'template_version_id' => null,
+            'registry' => 'gold_standard',
+            'name' => 'Template-level skill',
+            'skill_text' => $templateMarker,
+            'status' => 'ready',
+            'enabled' => true,
+            'created_by_user_id' => $staffId,
+        ]);
+        $templateLevel = AiEngineService::resolveSkill($versionId, $templateId, 'gold_standard');
+        assert_same('ready', $templateLevel['status']);
+        assert_same('template', $templateLevel['source']);
+        assert_contains($templateMarker, $templateLevel['text']);
+
+        // 5) A disabled version skill is skipped in favour of the template skill.
+        Db::insert('ai_engine_skills', [
+            'id' => Uuid::v4(),
+            'template_id' => $templateId,
+            'template_version_id' => $versionId,
+            'registry' => 'gold_standard',
+            'name' => 'Disabled version skill',
+            'skill_text' => 'DISABLED-SKILL-MARKER',
+            'status' => 'ready',
+            'enabled' => false,
+            'created_by_user_id' => $staffId,
+        ]);
+        $enabledOnly = AiEngineService::resolveSkill($versionId, $templateId, 'gold_standard');
+        assert_same('template', $enabledOnly['source'], 'disabled rows are ignored');
+        assert_false(str_contains($enabledOnly['text'], 'DISABLED-SKILL-MARKER'));
+
+        // 6) No skill anywhere and no global instructions: drafting is blocked.
+        Db::execute('DELETE FROM ai_engine_skills');
+        AiEngineService::save($staffId, [
+            'provider' => 'openai',
+            'base_url' => 'https://api.openai.com/v1',
+            'model' => 'gpt-4o-mini',
+            'temperature' => '0.2',
+            'max_tokens' => '700',
+            'enabled' => '1',
+            'skill_gold_standard' => '',
+            'skill_verra_vcs' => '',
+            'global_instructions' => '',
+        ]);
+        $missing = AiEngineService::resolveSkill($versionId, $templateId, 'gold_standard');
+        assert_same('missing', $missing['status']);
+        assert_same('none', $missing['source']);
+        try {
+            DraftService::generate($ownerId, (string) $project['id']);
+            throw new RuntimeException('Expected a missing skill to block drafting');
+        } catch (AppError $error) {
+            assert_same('ai_engine_skill_pending', $error->errorCode);
+        }
+
+        // 7) Skill tab payload exposes grouped rows, fallbacks, global and counts.
+        Db::execute('DELETE FROM ai_engine_skills');
+        Db::insert('ai_engine_skills', [
+            'id' => Uuid::v4(),
+            'template_id' => $templateId,
+            'template_version_id' => $versionId,
+            'registry' => 'gold_standard',
+            'name' => 'Payload skill',
+            'skill_text' => 'Payload text',
+            'status' => 'ready',
+            'enabled' => true,
+            'created_by_user_id' => $staffId,
+        ]);
+        $payload = AiEngineService::skillTabPayload();
+        assert_true(isset($payload['registries']) && count($payload['registries']) === 2, 'both registries grouped');
+        assert_true(isset($payload['totals']['versions']) && $payload['totals']['versions'] >= 1);
+        assert_same(1, $payload['totals']['ready']);
+        assert_true(array_key_exists('global', $payload) && array_key_exists('text', $payload['global']));
+        assert_true(array_key_exists('skill_max_chars', $payload) && $payload['skill_max_chars'] > 0);
+        $gold = null;
+        foreach ($payload['registries'] as $registryGroup) {
+            if ($registryGroup['registry'] === 'gold_standard') {
+                $gold = $registryGroup;
+            }
+        }
+        assert_not_null($gold);
+        $foundVersion = false;
+        foreach ($gold['templates'] as $templateRow) {
+            if ($templateRow['template_id'] === $templateId) {
+                foreach ($templateRow['versions'] as $versionRow) {
+                    if ($versionRow['template_version_id'] === $versionId) {
+                        $foundVersion = $versionRow['status'] === 'ready' && $versionRow['skill'] !== null;
+                    }
+                }
+            }
+        }
+        assert_true($foundVersion, 'payload contains the per-version ready row');
+
+        // Phase-2 copy exists (parity is asserted by unit_i18n).
+        assert_same('Pending', t('template.skill_pending'));
+        assert_same('Ready', t('template.skill_ready'));
+        assert_same('Version skill', t('ai.skill_source_version'));
+        assert_same('En attente', \App\I18n::forLocale('fr', 'template.skill_pending'));
+        assert_same('Compétence de version', \App\I18n::forLocale('fr', 'ai.skill_source_version'));
+        assert_same('{count} ready', t('ai.skill_ready_count'));
+        assert_true(t('error.ai_engine_skill_pending') !== 'error.ai_engine_skill_pending', 'pending-skill error copy exists');
+        assert_true(t('template.add_title') !== 'template.add_title', 'add-template copy exists');
+        assert_true(t('flash.template_created') !== 'flash.template_created', 'template-created flash exists');
     },
 ];

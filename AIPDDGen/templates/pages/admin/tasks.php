@@ -178,11 +178,19 @@ $lastShown = min($queue['page'] * 25, $queue['total']);
                                                 <button class="btn btn--ghost btn--sm" type="submit"><?= e(t('admin.unassign')) ?></button>
                                             </form>
                                         <?php endif; ?>
-                                        <form class="inline-form" method="post" action="<?= e(url('/admin/tasks/' . $task['id'] . '/complete')) ?>">
-                                            <?= csrf_field() ?>
-                                            <input type="hidden" name="return" value="<?= e($returnPath) ?>">
-                                            <button class="btn btn--sm" type="submit"><?= e(t('admin.mark_complete')) ?></button>
-                                        </form>
+                                        <?php if ((string) $task['work_type'] === 'organisation_kyb'): ?>
+                                            <?php /* KYC work is decided on the dedicated review screen, never "completed" here. */ ?>
+                                            <a class="btn btn--sm" href="<?= e(url('/admin/kyc') . '?status=submitted') ?>">
+                                                <?= e(t('admin.kyc_review_link')) ?> <span aria-hidden="true">&#8594;</span>
+                                            </a>
+                                            <span class="admin-muted small"><?= e(t('admin.kyc_review_hint')) ?></span>
+                                        <?php else: ?>
+                                            <form class="inline-form" method="post" action="<?= e(url('/admin/tasks/' . $task['id'] . '/complete')) ?>">
+                                                <?= csrf_field() ?>
+                                                <input type="hidden" name="return" value="<?= e($returnPath) ?>">
+                                                <button class="btn btn--sm" type="submit"><?= e(t('admin.mark_complete')) ?></button>
+                                            </form>
+                                        <?php endif; ?>
                                     </div>
                                 <?php endif; ?>
                             </td>

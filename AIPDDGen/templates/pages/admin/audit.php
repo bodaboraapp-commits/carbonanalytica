@@ -49,6 +49,17 @@ $showingLabel = static function (int $page, int $perPage, int $total): string {
 };
 $showingAudit = $showingLabel($tablePage, $auditPerPage, (int) $audit['total']);
 $showingRecent = $showingLabel($recentPage, $recentPerPage, (int) $recent_total);
+
+// AI Engine metadata moved here from the AI page status chips (owner request):
+// when the engine settings were last saved and which staff account saved them.
+// Reuses the read-only public settings payload (masked key only, no secret).
+$aiEngineSettings = \App\Services\AiEngineService::publicSettings();
+$aiEngineSavedAt = $aiEngineSettings['updated_at'] !== null
+    ? format_date((string) $aiEngineSettings['updated_at'])
+    : null;
+$aiEngineSavedBy = $aiEngineSettings['updated_by_name'] !== null
+    ? (string) $aiEngineSettings['updated_by_name']
+    : null;
 ?>
 <div class="admin-page-head">
     <div>
@@ -67,6 +78,17 @@ $showingRecent = $showingLabel($recentPage, $recentPerPage, (int) $recent_total)
         <a class="btn btn--secondary btn--sm" href="<?= e(url('/admin/audit')) ?>"><?= e(t('console.clear')) ?></a>
     </div>
 </form>
+
+<p class="admin-muted small">
+    <a href="<?= e(url('/admin/ai')) ?>"><?= e(t('ai.title')) ?></a> ·
+    <?= e(t('ai.last_saved')) ?>
+    <?php if ($aiEngineSavedAt !== null): ?>
+        <?= e($aiEngineSavedAt) ?>
+        <?php if ($aiEngineSavedBy !== null): ?> · <?= e(t('ai.by')) ?> <?= e($aiEngineSavedBy) ?><?php endif; ?>
+    <?php else: ?>
+        <?= e(t('ai.never')) ?>
+    <?php endif; ?>
+</p>
 
 <div class="audit-columns">
     <section class="panel-card" aria-labelledby="audit-recent-title">

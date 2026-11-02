@@ -60,6 +60,26 @@ $canManageMembers = (bool) $workspace['can_manage_members'];
     </section>
 <?php elseif ($orgStatus === 'submitted'): ?>
     <div class="alert alert--info" role="status"><?= e(t('org.prompt_submitted')) ?></div>
+<?php elseif ($orgStatus === 'verified'): ?>
+    <div class="alert alert--success" role="status">
+        <div>
+            <strong><?= e(t('org.banner_verified_title')) ?></strong>
+            <?= e(t('org.banner_verified_body')) ?>
+        </div>
+    </div>
+<?php elseif ($orgStatus === 'rejected'): ?>
+    <div class="alert alert--error" role="alert">
+        <div>
+            <strong><?= e(t('org.banner_rejected_title')) ?></strong>
+            <?= e(t('org.banner_rejected_body')) ?>
+            <?php if ((string) ($organization['profile']['review_note'] ?? '') !== ''): ?>
+                <p class="mt-1 mb-0"><?= e((string) $organization['profile']['review_note']) ?></p>
+            <?php endif; ?>
+            <p class="mt-1 mb-0">
+                <a class="btn btn--secondary btn--sm" href="<?= e(url('/onboarding') . '?step=4') ?>"><?= e(t('org.review_update_cta')) ?></a>
+            </p>
+        </div>
+    </div>
 <?php endif; ?>
 
 <section class="action-card" aria-labelledby="workspace-attention-title">

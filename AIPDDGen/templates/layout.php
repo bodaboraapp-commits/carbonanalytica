@@ -3,8 +3,12 @@
 declare(strict_types=1);
 
 /**
- * Shared page layout. Renders the guest or signed-in navigation, flash
- * messages and the footer around $content.
+ * Shared page layout. Renders guest or signed-in chrome around $content.
+ *
+ * Signed-in users get a workspace side panel (Projects / Team / Organization /
+ * Action Center) next to the main column; the panel collapses behind a CSS-only
+ * drawer on narrow screens. Guest pages keep the simple top navigation. Flash
+ * messages and the footer are shared.
  *
  * Variables: $content (set by View), $title (optional).
  */
@@ -21,10 +25,7 @@ $siteNext = $sitePath . ($siteQuery !== '' ? '?' . $siteQuery : '');
 $siteLocale = I18n::locale();
 $siteTitle = isset($title) && $title !== '' ? $title . ' · ' . t('app.name') : t('app.name') . ' — ' . t('app.tagline');
 $flashes = Session::takeFlashes();
-
-if (PHP_SAPI !== 'cli') {
-    /* Resource timing is not needed; keep the page free of blocking requests. */
-}
+$siteIsStaff = $siteUser !== null && (int) ($siteUser['is_platform_admin'] ?? 0) === 1;
 ?>
 <!doctype html>
 <html lang="<?= e($siteLocale) ?>">
@@ -37,6 +38,9 @@ if (PHP_SAPI !== 'cli') {
     <title><?= e($siteTitle) ?></title>
     <link rel="stylesheet" href="<?= e(asset('app.css')) ?>">
     <link rel="stylesheet" href="<?= e(asset('motion.css')) ?>">
+    <?php if ($siteUser !== null): ?>
+        <link rel="stylesheet" href="<?= e(asset('tenant-nav.css')) ?>">
+    <?php endif; ?>
 </head>
 <body>
 <a class="skip-link" href="#main"><?= e(t('app.skip_to_content')) ?></a>
@@ -53,21 +57,6 @@ if (PHP_SAPI !== 'cli') {
 
         <nav class="nav" aria-label="<?= e(t('nav.language')) ?>">
             <?php if ($siteUser !== null): ?>
-                <a class="nav__link" href="<?= e(url('/dashboard')) ?>" <?= is_current('/dashboard') || str_starts_with($sitePath, '/projects') ? 'aria-current="page"' : '' ?>>
-                    <?= e(t('nav.projects')) ?>
-                </a>
-                <a class="nav__link" href="<?= e(url('/team')) ?>" <?= is_current('/team') ? 'aria-current="page"' : '' ?>>
-                    <?= e(t('nav.team')) ?>
-                </a>
-                <a class="nav__link" href="<?= e(url('/onboarding')) ?>" <?= is_current('/onboarding') ? 'aria-current="page"' : '' ?>>
-                    <?= e(t('nav.organization')) ?>
-                </a>
-                <?php if ((int) ($siteUser['is_platform_admin'] ?? 0) === 1): ?>
-                    <a class="nav__link nav__link--admin" href="<?= e(url('/admin')) ?>" <?= is_current('/admin') ? 'aria-current="page"' : '' ?>>
-                        <?= e(t('nav.admin_console')) ?>
-                    </a>
-                <?php endif; ?>
-                <span class="nav__divider" aria-hidden="true"></span>
                 <?php \App\View::partial('partials/lang-switch', ['next' => $siteNext, 'locale' => $siteLocale]); ?>
                 <form class="inline-form" method="post" action="<?= e(url('/logout')) ?>">
                     <?= csrf_field() ?>
@@ -82,23 +71,53 @@ if (PHP_SAPI !== 'cli') {
     </div>
 </header>
 
-<main id="main" class="site-main">
-    <div class="container">
-        <?php \App\View::partial('partials/flash', ['flashes' => $flashes]); ?>
+<?php if ($siteUser !== null): ?>
+    <div class="container tenant-shell">
+        <aside class="tenant-sidebar">
+            <input type="checkbox" id="tenant-nav-toggle" class="tenant-nav-toggle-input" aria-controls="tenant-nav">
+            <label for="tenant-nav-toggle" class="tenant-nav-toggle">
+                <span class="tenant-nav-toggle__icon" aria-hidden="true">&#9776;</span>
+                <span><?= e(t('nav.menu')) ?></span>
+            </label>
+            <nav class="tenant-nav" id="tenant-nav" aria-label="<?= e(t('nav.workspace_menu')) ?>">
+                <a class="tenant-nav__link" href="<?= e(url('/dashboard')) ?>" <?= is_current('/dashboard') || str_starts_with($sitePath, '/projects') ? 'aria-current="page"' : '' ?>>
+                    <?= e(t('nav.projects')) ?>
+                </a>
+                <a class="tenant-nav__link" href="<?= e(url('/team')) ?>" <?= is_current('/team') ? 'aria-current="page"' : '' ?>>
+                    <?= e(t('nav.team')) ?>
+                </a>
+                <a class="tenant-nav__link" href="<?= e(url('/onboarding')) ?>" <?= is_current('/onboarding') ? 'aria-current="page"' : '' ?>>
+                    <?= e(t('nav.organization')) ?>
+                </a>
+                <?php if ($siteIsStaff): ?>
+                    <a class="tenant-nav__link tenant-nav__link--admin" href="<?= e(url('/admin')) ?>" <?= is_current('/admin') ? 'aria-current="page"' : '' ?>>
+                        <?= e(t('nav.admin_console')) ?>
+                    </a>
+                <?php endif; ?>
+            </nav>
+        </aside>
 
-        <?= $content ?>
+        <main id="main" class="site-main tenant-main">
+            <?php \App\View::partial('partials/flash', ['flashes' => $flashes]); ?>
+
+            <?= $content ?>
+        </main>
     </div>
-</main>
+<?php else: ?>
+    <main id="main" class="site-main">
+        <div class="container">
+            <?php \App\View::partial('partials/flash', ['flashes' => $flashes]); ?>
+
+            <?= $content ?>
+        </div>
+    </main>
+<?php endif; ?>
 
 <footer class="site-footer">
     <div class="container site-footer__inner">
         <span><?= e(t('app.name')) ?> · <?= e(t('landing.footer_note')) ?></span>
         <nav class="site-footer__nav" aria-label="<?= e(t('app.name')) ?>">
-            <?php if ($siteUser !== null): ?>
-                <a href="<?= e(url('/dashboard')) ?>"><?= e(t('nav.projects')) ?></a>
-                <a href="<?= e(url('/team')) ?>"><?= e(t('nav.team')) ?></a>
-                <a href="<?= e(url('/onboarding')) ?>"><?= e(t('nav.organization')) ?></a>
-            <?php else: ?>
+            <?php if ($siteUser === null): ?>
                 <a href="<?= e(url('/login')) ?>"><?= e(t('nav.sign_in')) ?></a>
                 <a href="<?= e(url('/signup')) ?>"><?= e(t('nav.sign_up')) ?></a>
             <?php endif; ?>

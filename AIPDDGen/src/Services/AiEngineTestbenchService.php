@@ -36,15 +36,15 @@ final class AiEngineTestbenchService
     public const REGISTRIES = ['gold_standard', 'verra_vcs'];
 
     /** Maximum pasted/uploaded input accepted by the bench (characters). */
-    public const MAX_INPUT_CHARS = 20000;
+    public const MAX_INPUT_CHARS = 100000;
 
     /** Maximum saved output length (characters). */
     public const MAX_OUTPUT_CHARS = 20000;
 
     public const MAX_TITLE = 160;
 
-    /** Upload cap: 256 KB of .txt/.md. */
-    public const MAX_UPLOAD_BYTES = 262144;
+    /** Upload cap: 1 MB of .txt/.md. */
+    public const MAX_UPLOAD_BYTES = 1048576;
 
     public const ALLOWED_EXTENSIONS = ['txt', 'md'];
 

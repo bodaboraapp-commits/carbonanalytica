@@ -77,7 +77,7 @@ final class DraftService
 
         $facts = self::confirmedFacts($projectId, $teamId);
         $inputs = self::inputExcerpts($projectId, $teamId);
-        $systemPrompt = self::systemPrompt($project, $settings);
+        $systemPrompt = self::systemPrompt($project, $settings, is_array($readiness['skill'] ?? null) ? $readiness['skill'] : null);
 
         // No confirmed facts and no usable input text: every section is a gap.
         // Do not ask a model to fill it — that is exactly how inventions happen.
@@ -346,7 +346,7 @@ final class DraftService
      *
      * @param array<string, mixed> $project
      * @param array{team: array<string, mixed>, role: string}|null $scope
-     * @return array{allowed: bool, error_code: ?string, status: int, message: string, message_params: array<string, string|int|float>, template_version: ?array<string, mixed>, fact_sheet: ?array<string, mixed>}
+     * @return array{allowed: bool, error_code: ?string, status: int, message: string, message_params: array<string, string|int|float>, template_version: ?array<string, mixed>, fact_sheet: ?array<string, mixed>, skill?: array<string, mixed>}
      */
     public static function readiness(array $project, ?array $scope = null): array
     {
@@ -379,6 +379,27 @@ final class DraftService
             return self::notReady('ai_engine_not_configured', 503, 'The AI engine has no API key configured.');
         }
 
+        // Per-template SKILL.md (phase 2): the most specific enabled skill.
+        // A pending/missing skill blocks drafting with an actionable message.
+        $skill = AiEngineService::resolveSkill(
+            (string) $templateVersion['id'],
+            isset($templateVersion['template_id']) ? (string) $templateVersion['template_id'] : null,
+            $registry,
+        );
+        if (($skill['status'] ?? '') !== AiEngineService::SKILL_STATUS_READY) {
+            $templateLabel = trim((string) ($skill['template_label'] ?? ''));
+            if ($templateLabel === '') {
+                $templateLabel = self::registryName($registry) . ' template';
+            }
+
+            return self::notReady(
+                'ai_engine_skill_pending',
+                422,
+                $templateLabel . ' has no ready SKILL.md yet.',
+                ['template' => $templateLabel],
+            );
+        }
+
         return [
             'allowed' => true,
             'error_code' => null,
@@ -387,6 +408,7 @@ final class DraftService
             'message_params' => [],
             'template_version' => $templateVersion,
             'fact_sheet' => $factSheet,
+            'skill' => $skill,
         ];
     }
 
@@ -541,13 +563,20 @@ final class DraftService
         return $sections;
     }
 
-    /** @param array<string, mixed> $project */
-    private static function systemPrompt(array $project, array $settings): string
+    /**
+     * @param array<string, mixed> $project
+     * @param array<string, mixed>|null $skill resolved skill from readiness()
+     */
+    private static function systemPrompt(array $project, array $settings, ?array $skill = null): string
     {
         $registry = self::registryName((string) $project['registry']);
         $language = (string) $project['language'] === 'fr' ? 'French' : 'English';
         $global = trim(AiEngineService::globalInstructions($settings));
-        $skill = trim(AiEngineService::skillForRegistry((string) $project['registry'], $settings));
+        // Resolved per-version/template/registry skill. When it resolves to the
+        // global instructions themselves, they are already included below.
+        $skillText = trim((string) ($skill['text'] ?? ''));
+        $skillSource = (string) ($skill['source'] ?? '');
+        $skillName = trim((string) ($skill['name'] ?? ''));
 
         $prompt = "You are the drafting engine of an AI PDD Generator. You draft one section of a {$registry} Project Design Document (PDD) at a time.\n";
         $prompt .= "The output is always a working draft for expert review, never an approved or verified document. Write in {$language}.\n\n";
@@ -555,8 +584,9 @@ final class DraftService
         if ($global !== '') {
             $prompt .= "GLOBAL EDITORIAL INSTRUCTIONS (admin-managed):\n{$global}\n\n";
         }
-        if ($skill !== '') {
-            $prompt .= "{$registry} GUIDANCE AND RULES (admin-managed skill):\n{$skill}\n\n";
+        if ($skillText !== '' && $skillSource !== AiEngineService::SKILL_SOURCE_GLOBAL) {
+            $label = $skillName !== '' ? $skillName : self::registryName((string) $project['registry']) . ' skill';
+            $prompt .= "GUIDANCE AND RULES (admin-managed skill — source: {$label}):\n{$skillText}\n\n";
         }
 
         // Few-shot style examples saved by staff (in-context tuning, not

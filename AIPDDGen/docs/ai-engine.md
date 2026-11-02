@@ -31,14 +31,16 @@ URL/model/key.
 | --- | --- |
 | Schema (singleton settings row) | `migrations/0009_ai_engine.sql` |
 | Schema (few-shot examples) | `migrations/0010_ai_engine_examples.sql` |
+| Schema (per-template SKILL.md) | `migrations/0011_ai_engine_skills.sql` |
 | Deployment secrets/config | `config/config.php` → `ai_engine.*`, `.env.example` |
 | Settings + encryption + test connection | `src/Services/AiEngineService.php` |
 | OpenAI-compatible HTTP client | `src/Services/LlmClient.php` |
 | Test bench + few-shot example library | `src/Services/AiEngineTestbenchService.php` |
+| Template versions + SKILL.md uploads | `src/Services/TemplateLibraryService.php` |
 | Guards, prompts, generation, draft view | `src/Services/DraftService.php` |
 | Staff console controller | `src/Controllers/AiEngineController.php` |
 | Workspace generate/view controller | `src/Controllers/DraftController.php` |
-| Routes | `src/routes.php` (`/admin/ai`, `/admin/ai/test`, `/admin/ai/test-input`, `/admin/ai/examples…`, `/projects/{id}/draft/generate`, `/drafts/{id}`) |
+| Routes | `src/routes.php` (`/admin/ai`, `/admin/ai/test`, `/admin/ai/test-input`, `/admin/ai/examples…`, `/admin/templates` + skill upload, `/projects/{id}/draft/generate`, `/drafts/{id}`) |
 | Admin page | `templates/pages/admin/ai.php` |
 | Draft page | `templates/pages/draft.php` |
 | Project page action | `templates/pages/project.php` |
@@ -49,9 +51,21 @@ Request flow (staff): `GET /admin/ai` → staff guard → `AiEngineService::publ
 Save, Test connection, Run test and the example actions are POSTs with CSRF
 enforced by `public/index.php`.
 
-Request flow (workspace): project page → `DraftService::uiState()` (read-only
-readiness + latest draft) → POST `/projects/{id}/draft/generate` →
-`DraftService::generate()` → 303 to `/drafts/{id}`.
+Request flow (workspace): `GET /projects/{id}` → `ProjectAiService::overview()`
+(read-only readiness conditions, honest blocker from `DraftService::readiness()`,
+submitted inputs, latest drafts and the real 5-step pipeline progress) →
+`templates/pages/project.php` renders the **AI drafting** card + horizontal
+progress stepper. Editors submit evidence with `POST /projects/{id}/inputs`
+(textarea and/or `.txt`/`.md`; CSRF; audited `project.input_added`; the
+attachment is stored privately and its plaintext is read into
+`inputs.source_text`, which `DraftService::inputExcerpts()` uses as drafting
+context — no parsing). Drafting is the existing
+`POST /projects/{id}/draft/generate` → `DraftService::generate()` → 303 to
+`/drafts/{id}`; the CTA is disabled with the real translated reason when the
+engine, published template, approved fact sheet or per-template SKILL.md is
+missing. The pipeline shows real progress (inputs / fact sheet / draft) and
+marks gap report + export as later steps. Cross-workspace projects are 404 and
+viewers are read-only.
 
 ---
 
@@ -88,26 +102,94 @@ readiness + latest draft) → POST `/projects/{id}/draft/generate` →
 
 ## 3. Admin workflow (`/admin/ai`, staff only)
 
-1. **Configure the provider.** Pick a preset (it fills the suggested API root),
+### Tabbed workspace (server-side, deep-linkable, no-JS)
+
+The page is split into four **server-side tabs** selected by the `?tab=` query
+string. They are ordinary links rendered by the server — no JavaScript, no
+client-side routing, and every tab is a shareable URL:
+
+| Tab | URL | Contents |
+| --- | --- | --- |
+| Overview | `/admin/ai` or `/admin/ai?tab=overview` | Status checklist (provider, model, API key, skills, enabled), Test connection, tab guide — also the fallback for a missing/unknown `tab` value |
+| Settings | `/admin/ai?tab=settings` | Provider preset, model, base URL, API key, temperature, token cap, enable switch |
+| Skill | `/admin/ai?tab=skill` | **Per-template SKILL.md list** (dynamic, grouped by registry) plus registry fallbacks and global instructions; `.md` uploads happen per template version on the Template library page |
+| Bench & training | `/admin/ai?tab=bench` | Ephemeral test bench + few-shot example library |
+
+State-changing actions keep the POST→redirect→GET pattern and return to the tab
+they came from: saving Settings returns to `?tab=settings`; saving the Skill form
+returns to `?tab=skill` (the form can post a hidden `_tab=settings|skill`; the
+skills form is otherwise recognised by its skill inputs); **Test connection**
+returns to `?tab=overview`; **Run test / save-as-example / example toggle/delete**
+return to `?tab=bench` (keeping the `#test-bench` / `#examples` anchors). Tabs are
+query-only — no new routes were added.
+
+### Per-template SKILL.md and resolution order (phase 2)
+
+`migrations/0011_ai_engine_skills.sql` adds `ai_engine_skills`:
+`template_id` / `template_version_id` (NULL for registry fallbacks), `registry`,
+`name`, `skill_text`, source filename/mime/size, `status ENUM('pending','ready')`,
+`enabled`, creator + timestamps, and a UNIQUE key on `template_version_id`.
+Adding a template version (Template library → Add template) creates its skill row
+in `pending`; uploading the version's **SKILL.md** (`/admin/templates/{id}/skill`,
+`.md`, ≤1 MB, read into the database and never stored as a public file) marks it
+`ready` and audits `ai_engine.skill_ready`.
+
+The drafting engine resolves the most specific **enabled** skill, in this order:
+
+1. **Per-version** — `ai_engine_skills.template_version_id` = the project's
+   published template version;
+2. **Per-template** — a row with `template_id` set and `template_version_id` NULL;
+3. **Registry fallback** — a row with both ids NULL for the project's registry
+   (backfilled once from the AI Engine settings skills);
+4. **Legacy registry skill** — the registry text still stored in
+   `ai_engine_settings` (keeps deployments/tests working before a fallback row
+   exists);
+5. **Global instructions** — the global text from the AI Engine settings.
+
+A **pending** row at the most specific level **blocks drafting** (it does not
+silently fall through): `DraftService::readiness()` returns
+`error.ai_engine_skill_pending` naming the template, so the project page and the
+generate action show an actionable message instead of a 500. A missing skill at
+every level is also a block (`SKILL.md required before drafting`). Disabled rows
+are ignored (resolution falls through). Ready skill text is injected into the
+drafting system prompt with its source label; global instructions and the
+few-shot style examples are appended as before, and the safety rules stay last.
+
+The **Skill tab** renders the dynamic payload from
+`AiEngineService::skillTabPayload()`: registry groups → per-template rows with
+their versions (pending/ready badge, stored-text presence, source filename,
+updated timestamp) → the registry fallback row → the current global instructions.
+SKILL.md content is admin guidance only and must never contain customer project
+data.
+
+1. **Configure the provider** (Settings tab). Pick a preset (it fills the suggested API root),
    then choose the **model** from the curated dropdown for that provider, or
    pick **“Other / custom model…”** and paste the exact provider model id. The
    base URL is the API root only; the client appends `/chat/completions`.
-2. **Paste the API key.** It is validated (max length) and encrypted
+2. **Paste the API key** (Settings tab). It is validated (max length) and encrypted
    immediately. Leave the field blank to keep the stored key.
-3. **Write the SKILL.** Free-text rules per registry plus optional global
+3. **Write the SKILL** (Skill tab). Free-text rules per registry plus optional global
    instructions. These are injected into the system prompt and are treated as
    admin-managed, trusted guidance. The hard safety rules are always appended
    *after* the skill, so a skill cannot override the no-invention rules.
-4. **Enable the engine.** Enabling is refused unless a key is available (stored
+   Each of the three skill fields (Gold Standard, Verra VCS, global) also accepts
+   an **uploaded Markdown (`.md`) document** (up to 1 MB): a valid upload
+   replaces that skill's text when you save. The file is read once into the
+   skill text and **never stored on disk**; the normal character limits still
+   apply, and other file types (PDF/Word) are rejected in this MVP.
+   For an individual template version, upload its **SKILL.md** from
+   `/admin/templates` (Manage → SKILL.md). Until that row is ready, drafting with
+   the version is blocked with a clear message.
+4. **Enable the engine** (Settings tab). Enabling is refused unless a key is available (stored
    or env fallback) — that avoids turning on a configuration that would fail on
    the first draft.
-5. **Test connection** (optional). This is the only staff action that makes a
+5. **Test connection** (Overview tab, optional). This is the only staff action that makes a
    real provider request outside drafting. Errors are shown as translated,
    safe messages **plus the sanitised provider reason** (for example
    “model not found”); the key, headers and raw body are never shown.
-6. **Run a sample in the test bench** (below) to check the skill, then save a
+6. **Run a sample in the test bench** (Bench & training tab) to check the skill, then save a
    good pair as a few-shot example.
-7. **Remove / rotate the key** with the "Remove the stored API key" checkbox.
+7. **Remove / rotate the key** (Settings tab) with the "Remove the stored API key" checkbox.
 
 Status badges on the page:
 
@@ -333,11 +415,13 @@ php bin/test.php ai_testbench       # bench + few-shot examples, offline
 php bin/test.php unit_i18n          # EN/FR parity
 ```
 
-HTTP checks (dev server on port 8000): staff `GET /admin/ai` → 200 with the
-configuration form, a `select[name=model]` containing the provider presets plus
-the custom-model option, the Test bench panel and the examples library; tenant
-account → 404; a demo project with no registry (or no published template / no
-approved fact sheet) → clear flash refusal, never a 500; Test connection shows
+HTTP checks (dev server on port 8000): staff `GET /admin/ai` and each
+`?tab=overview|settings|skill|bench` → 200 (an unknown/missing `tab` falls back to
+overview); the page carries the configuration form, a `select[name=model]` with
+the provider presets plus the custom-model option, the Test bench panel and the
+examples library; POST save/test/bench redirects carry the originating `?tab=…`;
+tenant account → 404; a demo project with no registry (or no published template /
+no approved fact sheet) → clear flash refusal, never a 500; Test connection shows
 the sanitised provider reason.
 
 The tests cover: settings save/encrypt/mask, key never exposed, encryption
@@ -351,7 +435,13 @@ role requirement, cross-tenant 404s and draft version increments; **and for the
 bench**: ephemeral run + audit without input text, .txt/.md validation and size
 caps, example save/enable/disable/delete with audit, prompt budget/cap, disabled
 and cross-registry examples excluded, and DraftService prompts including enabled
-examples only.
+examples only. The tab contract is covered too: `?tab=` validation/defaulting,
+save-origin detection (settings vs skill), and the PRG redirect target for
+save/test-connection/bench actions. **Per-template skills** are covered by the
+resolution test: version → template → registry → legacy settings → global order,
+pending blocking with the template named, ready skill text reaching the draft
+prompt, disabled rows skipped, missing skill blocking, and the dynamic Skill tab
+payload structure (`skillTabPayload()`).
 
 ---
 
@@ -363,7 +453,7 @@ skill examples** library below the bench.
 ### Test bench (ephemeral)
 
 1. Choose the registry skill (Gold Standard / Verra VCS).
-2. Paste a staff test snippet and/or upload a `.txt`/`.md` file (≤ 256 KB; no
+2. Paste a staff test snippet and/or upload a `.txt`/`.md` file (≤ 1 MB; no
    PDF/Word text extraction in this MVP), optionally with expected output/notes.
 3. **Run test** sends one chat completion with the registry skill plus bench
    instructions and shows the PDD-style output, the model and the latency.
@@ -432,8 +522,31 @@ data into the example library or the template library).
 | **No streaming, token accounting or cost display** | Not in the MVP. |
 | **No RAG/embeddings** | The prompt uses confirmed facts + stored input excerpts; lexical retrieval/complete fact extraction arrive with steps 3–4. |
 | **Single provider config** | One global engine for the whole deployment (no per-workspace BYOK). |
-| **Test bench is text only** | Paste or `.txt`/`.md` upload (≤256 KB); no PDF/Word extraction (that needs a parser dependency per the no-new-runtime rule). Bench output is ephemeral and not reviewable/exported. |
+| **Skill documents are Markdown only** | The three skill fields accept pasted text (registry skills up to 100,000 characters; global instructions up to 20,000) or a `.md` upload (≤1 MB); PDF/Word extraction needs a parser dependency, so it is out of scope. Uploaded skill text is stored in the settings row, not on disk. |
+| **Test bench is text only** | Paste or `.txt`/`.md` upload (≤1 MB, ≤100,000 characters); no PDF/Word extraction (that needs a parser dependency per the no-new-runtime rule). Bench output is ephemeral and not reviewable/exported. |
 | **Few-shot examples are prompt text, not training** | Enabled examples are appended to drafting prompts (max 3 / ~2000 chars) and are therefore sent to the configured LLM provider with those requests; they are not used to train or fine-tune any model and no weights change. They cannot teach new facts — manage/curate them by hand. |
 | **No example reordering UI** | Order is creation order (`ordinal`); reorder is deferred. Enable/disable/delete are supported. |
+| **No instance-level fallback override** | The per-template SKILL.md list and the registry fallbacks are managed from the console; resolution is automatic and there is no per-project skill override (not needed for the MVP). |
+| **Per-template SKILL.md is mandatory for new versions** | A template version added through the library starts **pending**; drafting with it is refused (`error.ai_engine_skill_pending`) until its SKILL.md is uploaded and ready. Versions inserted directly (seeds/tests) have no row and fall back to the registry-level/legacy skill, which keeps the seeded Gold Standard flow working. SKILL.md upload/replace lives on `/admin/templates`; the AI Engine Skill tab lists status and the fallback/global text. |
+| **Skill edits are Markdown uploads only** | Per-template skills are uploaded as `.md` files (read into the database, never stored as a public file); there is no rich-text editor or per-template textarea in the MVP. |
 | **Azure-specific parameters** | `api-version` / deployment-name style endpoints are not modelled; use the OpenAI-compatible base URL. |
 | **French output** | French drafts are working drafts; the registry language is English unless agreed (labelled on the draft page). |
+
+### Limit and counter messages (field-specific, tabbed UI)
+
+The owner reported the generic “This value is too long.” line for oversized
+skill/bench input. The controller keeps the **existing validation codes**
+(`too_long`, `invalid_choice`, `required`) — tests and API behaviour are unchanged
+— and the tabbed template (task-25) maps the code per field to actionable copy,
+passing the configured cap as a placeholder (`t($key, ['used' => …, 'max' => …])`):
+
+| Key | EN copy (FR mirrored) | Used for | Cap |
+| --- | --- | --- | --- |
+| `ai.char_counter` | `{used} / {max} characters` | server-rendered counter under a skill/test textarea | per field |
+| `ai.skill_too_long` | `Skill text is too long (max {max} characters).` | skill/global textarea over the limit | 100,000 (registry skill) / 20,000 (global) |
+| `ai.skill_upload_too_large` | `The uploaded Markdown file is too large (max {max} KB).` | `.md` skill upload over the limit | 1 MB (1,024 KB) |
+| `ai.bench_input_too_long` | `Sample input is too long (max {max} characters).` | test-bench sample input over the limit | 100,000 |
+
+These are copy-only keys: no new routes, no validation-code change, and the
+server limits remain the source of truth (extensions still `.md` only for skill
+uploads; `.txt`/`.md` for the bench).

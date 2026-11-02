@@ -19,6 +19,7 @@ use App\Controllers\DraftController;
 use App\Controllers\InviteController;
 use App\Controllers\OnboardingController;
 use App\Controllers\PageController;
+use App\Controllers\ProjectAiController;
 use App\Controllers\ProjectController;
 use App\Controllers\TeamController;
 use App\Controllers\WorkspaceTaskController;
@@ -29,6 +30,7 @@ $router = new Router();
 $pages = new PageController();
 $auth = new AuthController();
 $projects = new ProjectController();
+$projectAi = new ProjectAiController();
 $team = new TeamController();
 $invite = new InviteController();
 $onboarding = new OnboardingController();
@@ -69,6 +71,8 @@ $router->get('/projects/{id}', [$pages, 'projectShow']);
 
 // AI drafting: manual generation plus the read-only draft page.
 $router->post('/projects/{id}/draft/generate', [$drafts, 'generate']);
+// User-side input tunnel: workspace editors submit project evidence for drafting.
+$router->post('/projects/{id}/inputs', [$projectAi, 'addInput']);
 $router->get('/drafts/{id}', [$drafts, 'show']);
 
 // Workspace admin job queue (owner/admin only; workspace-scoped tasks).
@@ -95,11 +99,16 @@ $router->post('/onboarding/submit', [$onboarding, 'submit']);
 $router->get('/admin', [$adminConsole, 'overview']);
 $router->get('/admin/workspaces', [$adminConsole, 'workspaces']);
 $router->get('/admin/kyc', [$adminConsole, 'kyc']);
+$router->post('/admin/kyc/{id}/verify', [$adminConsole, 'verifyKyc']);
+$router->post('/admin/kyc/{id}/reject', [$adminConsole, 'rejectKyc']);
 $router->get('/admin/users', [$adminConsole, 'users']);
 $router->post('/admin/users/{id}/platform-admin', [$adminConsole, 'togglePlatformAdmin']);
 $router->post('/admin/settings/{key}', [$adminConsole, 'toggleSetting']);
 $router->get('/admin/templates', [$adminConsole, 'templates']);
-// Template library management (staff only): source upload, publish/retire, delete.
+// Template library management (staff only): create template, source upload,
+// SKILL.md upload, publish/retire, delete.
+$router->post('/admin/templates', [$adminTemplates, 'create']);
+$router->post('/admin/templates/{id}/skill', [$adminTemplates, 'uploadSkill']);
 $router->post('/admin/templates/{id}/source', [$adminTemplates, 'uploadSource']);
 $router->post('/admin/templates/{id}/status', [$adminTemplates, 'updateStatus']);
 $router->post('/admin/templates/{id}/delete', [$adminTemplates, 'deleteVersion']);

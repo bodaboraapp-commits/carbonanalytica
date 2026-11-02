@@ -180,7 +180,7 @@ Wizard progress is **derived** from these rows ([organization onboarding](organi
 | Auth (F1) | Complete: email/password with an emailed one-time code as the sign-in second factor, Google OAuth, password reset, rate limiting, audit. |
 | Teams and roles (F1, F10 partial) | Complete: personal workspace, invitations, role rules, member management, audit. |
 | Projects (F2 groundwork) | Create/list/detail/soft delete with tenant isolation. The wizard is step 3. |
-| Organization onboarding (product-owner request) | Complete: 4-step wizard, document uploads, declaration template, submit/lock and audit. Admin review console is a later step. |
+| Organization onboarding (product-owner request) | Complete: 4-step wizard, document uploads, declaration template, submit/lock and audit. Admin review on `/admin/kyc`: verify or reject with a note (rejection reason required), outcome email to the primary contact, audit, and KYB task closure; the tenant sees the outcome and resubmits after changes. |
 | Inputs, facts, templates, drafts tables | Created and indexed; APIs/UI arrive in steps 2–8. |
 | Billing (F12) | Not in this migration; step 10. |
 

@@ -86,10 +86,91 @@ final class AiEngineService
     public const MAX_BASE_URL = 500;
     public const MAX_MODEL = 120;
     public const MAX_KEY_LENGTH = 512;
-    public const MAX_SKILL_LENGTH = 20000;
-    public const MAX_GLOBAL_INSTRUCTIONS = 8000;
+    // Real registry skill documents run 20-100 KB of markdown, so the caps are
+    // generous; the DB columns are MEDIUMTEXT and the prompt budget is applied
+    // separately when drafting.
+    public const MAX_SKILL_LENGTH = 100000;
+    public const MAX_GLOBAL_INSTRUCTIONS = 20000;
     public const MIN_MAX_TOKENS = 50;
     public const MAX_MAX_TOKENS = 32000;
+
+    /**
+     * Skill documents can be uploaded as markdown instead of pasted. A valid
+     * upload replaces the matching textarea value on save; the file is read into
+     * the skill text and never stored on disk. Character limits still apply.
+     */
+    public const SKILL_UPLOAD_EXTENSIONS = ['md'];
+    public const SKILL_UPLOAD_MAX_BYTES = 1048576;
+
+    /** Skill field => upload input name (all three skills: GS, Verra, global). */
+    public const SKILL_UPLOAD_FIELDS = [
+        'skill_gold_standard' => 'skill_gold_standard_file',
+        'skill_verra_vcs' => 'skill_verra_vcs_file',
+        'global_instructions' => 'global_instructions_file',
+    ];
+
+    /**
+     * Merge uploaded `.md` skill documents into settings input.
+     *
+     * A valid upload replaces the textarea content for that skill. Files are
+     * validated (extension + size), read once into text and never written to
+     * disk; existing character limits are enforced by save()/validate().
+     *
+     * @param array<string, mixed> $input POST fields
+     * @param array<string, mixed> $files $_FILES
+     * @return array<string, mixed> the input with uploaded skill text applied
+     */
+    public static function applySkillUploads(array $input, array $files): array
+    {
+        $errors = [];
+
+        foreach (self::SKILL_UPLOAD_FIELDS as $field => $fileField) {
+            $upload = $files[$fileField] ?? null;
+            if (!is_array($upload)) {
+                continue;
+            }
+            $errorCode = (int) ($upload['error'] ?? UPLOAD_ERR_NO_FILE);
+            if ($errorCode === UPLOAD_ERR_NO_FILE) {
+                continue;
+            }
+            if ($errorCode !== UPLOAD_ERR_OK) {
+                $errors[$field] = 'invalid_choice';
+                continue;
+            }
+
+            $name = (string) ($upload['name'] ?? '');
+            $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+            if (!in_array($extension, self::SKILL_UPLOAD_EXTENSIONS, true)) {
+                $errors[$field] = 'invalid_choice';
+                continue;
+            }
+            if ((int) ($upload['size'] ?? 0) > self::SKILL_UPLOAD_MAX_BYTES) {
+                $errors[$field] = 'too_long';
+                continue;
+            }
+
+            $content = file_get_contents((string) ($upload['tmp_name'] ?? ''));
+            if (!is_string($content)) {
+                $errors[$field] = 'invalid_choice';
+                continue;
+            }
+            // Strip a UTF-8 BOM; keep the rest verbatim (markdown structure matters).
+            $content = (string) preg_replace('/^\xEF\xBB\xBF/', '', $content);
+            $content = trim($content);
+            if ($content === '') {
+                $errors[$field] = 'required';
+                continue;
+            }
+
+            $input[$field] = $content;
+        }
+
+        if ($errors !== []) {
+            throw AppError::validation($errors);
+        }
+
+        return $input;
+    }
 
     /** @return array<string, mixed> the singleton row (created with defaults if missing) */
     public static function settings(): array
@@ -311,6 +392,277 @@ final class AiEngineService
         return (string) ($row['global_instructions'] ?? '');
     }
 
+    /** Skill sources, most specific first (see resolveSkill()). */
+    public const SKILL_SOURCE_VERSION = 'template_version';
+    public const SKILL_SOURCE_TEMPLATE = 'template';
+    public const SKILL_SOURCE_REGISTRY = 'registry';
+    public const SKILL_SOURCE_REGISTRY_SETTINGS = 'registry_settings';
+    public const SKILL_SOURCE_GLOBAL = 'global';
+    public const SKILL_SOURCE_NONE = 'none';
+
+    public const SKILL_STATUS_PENDING = 'pending';
+    public const SKILL_STATUS_READY = 'ready';
+    public const SKILL_STATUS_MISSING = 'missing';
+
+    /**
+     * Resolve the admin-managed skill used for one draft.
+     *
+     * Order: per-template-version SKILL.md -> per-template skill -> registry-level
+     * fallback row -> legacy registry skill from ai_engine_settings -> global
+     * instructions. Only enabled rows are considered. A PENDING row at the most
+     * specific level blocks drafting (it does not silently fall through), so the
+     * UI can ask for the missing SKILL.md.
+     *
+     * @return array{status: string, text: string, source: string, source_label_key: string, name: string, template_label: string, template_id: ?string, template_version_id: ?string}
+     */
+    public static function resolveSkill(?string $templateVersionId = null, ?string $templateId = null, ?string $registry = null): array
+    {
+        $templateLabel = '';
+        $version = null;
+
+        if ($templateVersionId !== null && $templateVersionId !== '') {
+            $version = Db::selectOne(
+                'SELECT tv.id, tv.template_id, tv.version_label, tpl.name AS template_name, tpl.registry
+                 FROM template_versions tv
+                 INNER JOIN templates tpl ON tpl.id = tv.template_id
+                 WHERE tv.id = ? LIMIT 1',
+                [$templateVersionId],
+            );
+            if ($version !== null) {
+                $templateId ??= (string) $version['template_id'];
+                $registry ??= (string) $version['registry'];
+                $templateLabel = trim((string) $version['template_name'] . ' ' . (string) $version['version_label']);
+            }
+        }
+
+        if ($templateVersionId !== null && $templateVersionId !== '') {
+            $row = Db::selectOne(
+                'SELECT * FROM ai_engine_skills WHERE template_version_id = ? AND enabled = 1 LIMIT 1',
+                [$templateVersionId],
+            );
+            $resolved = self::skillFromRow($row, self::SKILL_SOURCE_VERSION, $templateLabel, $templateId, $templateVersionId);
+            if ($resolved !== null) {
+                return $resolved;
+            }
+        }
+
+        if ($templateId !== null && $templateId !== '') {
+            $row = Db::selectOne(
+                'SELECT * FROM ai_engine_skills WHERE template_id = ? AND template_version_id IS NULL AND enabled = 1 LIMIT 1',
+                [$templateId],
+            );
+            $resolved = self::skillFromRow($row, self::SKILL_SOURCE_TEMPLATE, $templateLabel, $templateId, $templateVersionId);
+            if ($resolved !== null) {
+                return $resolved;
+            }
+        }
+
+        if ($registry !== null && $registry !== '') {
+            $row = Db::selectOne(
+                'SELECT * FROM ai_engine_skills WHERE registry = ? AND template_id IS NULL AND template_version_id IS NULL AND enabled = 1 LIMIT 1',
+                [$registry],
+            );
+            $resolved = self::skillFromRow($row, self::SKILL_SOURCE_REGISTRY, $templateLabel, $templateId, $templateVersionId);
+            if ($resolved !== null) {
+                return $resolved;
+            }
+
+            // Legacy fallback: the registry skill stored in ai_engine_settings.
+            $legacy = trim(self::skillForRegistry($registry));
+            if ($legacy !== '') {
+                return self::skillArray(self::SKILL_STATUS_READY, $legacy, self::SKILL_SOURCE_REGISTRY_SETTINGS, 'Registry skill', $templateLabel, $templateId, $templateVersionId);
+            }
+        }
+
+        $global = trim(self::globalInstructions());
+        if ($global !== '') {
+            return self::skillArray(self::SKILL_STATUS_READY, $global, self::SKILL_SOURCE_GLOBAL, 'Global instructions', $templateLabel, $templateId, $templateVersionId);
+        }
+
+        return self::skillArray(self::SKILL_STATUS_MISSING, '', self::SKILL_SOURCE_NONE, '', $templateLabel, $templateId, $templateVersionId);
+    }
+
+    /** Translation key for a resolved skill source. */
+    public static function skillSourceLabelKey(string $source): string
+    {
+        return match ($source) {
+            self::SKILL_SOURCE_VERSION => 'ai.skill_source_version',
+            self::SKILL_SOURCE_TEMPLATE => 'ai.skill_source_template',
+            self::SKILL_SOURCE_REGISTRY => 'ai.skill_source_registry',
+            self::SKILL_SOURCE_REGISTRY_SETTINGS => 'ai.skill_source_registry_settings',
+            self::SKILL_SOURCE_GLOBAL => 'ai.skill_source_global',
+            default => 'ai.skill_source_none',
+        };
+    }
+
+    /**
+     * Data for the dynamic Skill tab: per-template/per-version SKILL.md rows
+     * grouped by registry, registry fallbacks + global instructions and counts.
+     *
+     * @return array{registries: list<array<string, mixed>>, global: array{text: string, chars: int}, totals: array{versions: int, pending: int, ready: int, missing: int}, skill_max_chars: int, skill_max_bytes: int}
+     */
+    public static function skillTabPayload(): array
+    {
+        $versionRows = Db::select(
+            "SELECT tv.id AS template_version_id, tv.version_label, tv.status AS version_status, tv.effective_date,
+                    tpl.id AS template_id, tpl.name AS template_name, tpl.registry,
+                    sk.id AS skill_id, sk.name AS skill_name, sk.status AS skill_status,
+                    sk.enabled AS skill_enabled, sk.source_filename, sk.updated_at AS skill_updated_at,
+                    CASE WHEN sk.skill_text IS NULL OR TRIM(sk.skill_text) = '' THEN 0 ELSE 1 END AS has_text
+             FROM template_versions tv
+             INNER JOIN templates tpl ON tpl.id = tv.template_id
+             LEFT JOIN ai_engine_skills sk ON sk.template_version_id = tv.id
+             WHERE tpl.kind = 'pdd_template'
+             ORDER BY tpl.registry ASC, tpl.name ASC, tv.version_label ASC",
+        );
+        $templateRows = Db::select(
+            'SELECT * FROM ai_engine_skills WHERE template_id IS NOT NULL AND template_version_id IS NULL',
+        );
+        $fallbackRows = Db::select(
+            'SELECT * FROM ai_engine_skills WHERE template_id IS NULL AND template_version_id IS NULL',
+        );
+
+        $templateSkillByTemplate = [];
+        foreach ($templateRows as $row) {
+            $templateSkillByTemplate[(string) $row['template_id']] = self::skillSummary($row);
+        }
+        $fallbackByRegistry = [];
+        foreach ($fallbackRows as $row) {
+            $fallbackByRegistry[(string) ($row['registry'] ?? '')] = self::skillSummary($row);
+        }
+
+        $registries = [];
+        $totals = ['versions' => 0, 'pending' => 0, 'ready' => 0, 'missing' => 0];
+        $labels = [
+            'gold_standard' => 'landing.registry_gs',
+            'verra_vcs' => 'landing.registry_vcs',
+        ];
+
+        foreach ($labels as $registry => $labelKey) {
+            $templates = [];
+            $templateIndex = [];
+            foreach ($versionRows as $row) {
+                if ((string) $row['registry'] !== $registry) {
+                    continue;
+                }
+                $templateId = (string) $row['template_id'];
+                if (!isset($templateIndex[$templateId])) {
+                    $templateIndex[$templateId] = count($templates);
+                    $templates[] = [
+                        'template_id' => $templateId,
+                        'template_name' => (string) $row['template_name'],
+                        'template_skill' => $templateSkillByTemplate[$templateId] ?? null,
+                        'versions' => [],
+                    ];
+                }
+                $skill = null;
+                if ($row['skill_id'] !== null) {
+                    $skill = [
+                        'id' => (string) $row['skill_id'],
+                        'name' => (string) ($row['skill_name'] ?? ''),
+                        'status' => (string) $row['skill_status'],
+                        'enabled' => (int) ($row['skill_enabled'] ?? 1) === 1,
+                        'has_text' => (int) ($row['has_text'] ?? 0) === 1,
+                        'source_filename' => $row['source_filename'] !== null ? (string) $row['source_filename'] : null,
+                        'updated_at' => $row['skill_updated_at'] !== null ? (string) $row['skill_updated_at'] : null,
+                    ];
+                }
+                $status = $skill === null ? self::SKILL_STATUS_MISSING : (string) $skill['status'];
+                $totals['versions']++;
+                if (isset($totals[$status])) {
+                    $totals[$status]++;
+                }
+                $templates[$templateIndex[$templateId]]['versions'][] = [
+                    'template_version_id' => (string) $row['template_version_id'],
+                    'version_label' => (string) $row['version_label'],
+                    'version_status' => (string) $row['version_status'],
+                    'effective_date' => $row['effective_date'] !== null ? (string) $row['effective_date'] : null,
+                    'status' => $status,
+                    'skill' => $skill,
+                ];
+            }
+
+            $registries[] = [
+                'registry' => $registry,
+                'label_key' => $labelKey,
+                'fallback' => $fallbackByRegistry[$registry] ?? null,
+                'templates' => $templates,
+            ];
+        }
+
+        $global = trim(self::globalInstructions());
+
+        return [
+            'registries' => $registries,
+            'global' => ['text' => $global, 'chars' => mb_strlen($global)],
+            'totals' => $totals,
+            'skill_max_chars' => TemplateLibraryService::SKILL_MAX_CHARS,
+            'skill_max_bytes' => TemplateLibraryService::SKILL_MAX_BYTES,
+        ];
+    }
+
+    /**
+     * Build a resolution result from a skill row. Returns null when the row is
+     * unusable (ready but empty) so resolution falls through to the next level.
+     *
+     * @param array<string, mixed>|null $row
+     * @return array<string, mixed>|null
+     */
+    private static function skillFromRow(?array $row, string $source, string $templateLabel, ?string $templateId, ?string $templateVersionId): ?array
+    {
+        if ($row === null) {
+            return null;
+        }
+
+        $status = (string) ($row['status'] ?? '');
+        $name = (string) ($row['name'] ?? '');
+        if ($status === self::SKILL_STATUS_PENDING) {
+            return self::skillArray(self::SKILL_STATUS_PENDING, '', $source, $name, $templateLabel, $templateId, $templateVersionId);
+        }
+
+        $text = trim((string) ($row['skill_text'] ?? ''));
+        if ($status !== self::SKILL_STATUS_READY || $text === '') {
+            return null;
+        }
+
+        return self::skillArray(self::SKILL_STATUS_READY, $text, $source, $name, $templateLabel, $templateId, $templateVersionId);
+    }
+
+    /** @return array{status: string, text: string, source: string, source_label_key: string, name: string, template_label: string, template_id: ?string, template_version_id: ?string} */
+    private static function skillArray(string $status, string $text, string $source, string $name, string $templateLabel, ?string $templateId, ?string $templateVersionId): array
+    {
+        return [
+            'status' => $status,
+            'text' => $text,
+            'source' => $source,
+            'source_label_key' => self::skillSourceLabelKey($source),
+            'name' => $name,
+            'template_label' => $templateLabel,
+            'template_id' => $templateId,
+            'template_version_id' => $templateVersionId,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array{id: string, name: string, status: string, enabled: bool, has_text: bool, chars: int, source_filename: ?string, updated_at: ?string}
+     */
+    private static function skillSummary(array $row): array
+    {
+        $text = trim((string) ($row['skill_text'] ?? ''));
+
+        return [
+            'id' => (string) $row['id'],
+            'name' => (string) ($row['name'] ?? ''),
+            'status' => (string) ($row['status'] ?? ''),
+            'enabled' => (int) ($row['enabled'] ?? 1) === 1,
+            'has_text' => $text !== '',
+            'chars' => mb_strlen($text),
+            'source_filename' => $row['source_filename'] !== null ? (string) $row['source_filename'] : null,
+            'updated_at' => $row['updated_at'] !== null ? (string) $row['updated_at'] : null,
+        ];
+    }
+
     /**
      * Send a minimal real request to prove the provider configuration works.
      * This is the only staff action that calls the provider outside a draft.
@@ -518,19 +870,29 @@ final class AiEngineService
             $maxTokens = 1200;
         }
 
-        $skillGold = trim((string) ($input['skill_gold_standard'] ?? ''));
+        // The Settings tab posts only settings fields; the Skill tab posts all
+        // three skill fields (an empty string there is an intentional clear). An
+        // ABSENT skill field therefore means "keep the stored value", not "erase
+        // it" — otherwise saving the Settings tab destroys the skills.
+        $skillGold = array_key_exists('skill_gold_standard', $input)
+            ? trim((string) $input['skill_gold_standard'])
+            : (string) ($current['skill_gold_standard'] ?? '');
         if (mb_strlen($skillGold) > self::MAX_SKILL_LENGTH) {
             $errors['skill_gold_standard'] = 'too_long';
             $skillGold = mb_substr($skillGold, 0, self::MAX_SKILL_LENGTH);
         }
 
-        $skillVerra = trim((string) ($input['skill_verra_vcs'] ?? ''));
+        $skillVerra = array_key_exists('skill_verra_vcs', $input)
+            ? trim((string) $input['skill_verra_vcs'])
+            : (string) ($current['skill_verra_vcs'] ?? '');
         if (mb_strlen($skillVerra) > self::MAX_SKILL_LENGTH) {
             $errors['skill_verra_vcs'] = 'too_long';
             $skillVerra = mb_substr($skillVerra, 0, self::MAX_SKILL_LENGTH);
         }
 
-        $global = trim((string) ($input['global_instructions'] ?? ''));
+        $global = array_key_exists('global_instructions', $input)
+            ? trim((string) $input['global_instructions'])
+            : (string) ($current['global_instructions'] ?? '');
         if (mb_strlen($global) > self::MAX_GLOBAL_INSTRUCTIONS) {
             $errors['global_instructions'] = 'too_long';
             $global = mb_substr($global, 0, self::MAX_GLOBAL_INSTRUCTIONS);

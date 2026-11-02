@@ -267,6 +267,36 @@ final class ReviewTaskRepository
     }
 
     /**
+     * Complete every open task for a linked entity (used when an admin decision
+     * makes the queue item moot, e.g. a KYC verify/reject). Returns the ids that
+     * were closed so the caller can audit each one.
+     *
+     * @return list<string>
+     */
+    public static function closeOpenForTarget(string $targetType, string $targetId, string $userId): array
+    {
+        $open = Db::select(
+            "SELECT id FROM review_tasks
+             WHERE target_type = ? AND target_id = ? AND status IN ('unassigned','in_progress','blocked')",
+            [$targetType, $targetId],
+        );
+
+        if ($open === []) {
+            return [];
+        }
+
+        Db::execute(
+            "UPDATE review_tasks
+             SET status = 'completed', completed_at = NOW(3), completed_by_user_id = ?,
+                 assigned_user_id = COALESCE(assigned_user_id, ?)
+             WHERE target_type = ? AND target_id = ? AND status IN ('unassigned','in_progress','blocked')",
+            [$userId, $userId, $targetType, $targetId],
+        );
+
+        return array_map(static fn (array $row): string => (string) $row['id'], $open);
+    }
+
+    /**
      * Create one KBY review task per submitted organisation profile that does
      * not have an open task yet. Safe to call on every Action Center load.
      */
@@ -285,7 +315,7 @@ final class ReviewTaskRepository
                    SELECT 1 FROM review_tasks rt
                    WHERE rt.target_type = 'organization_profile'
                      AND rt.target_id = op.id
-                     AND rt.status IN ('unassigned','in_progress','blocked','completed')
+                     AND rt.status IN ('unassigned','in_progress','blocked')
                )",
         );
 

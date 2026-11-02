@@ -167,6 +167,7 @@ Write-Output '--- public pages ---'
 $homePage = Invoke-Request '/'
 Check 'home page renders' ($homePage.Status -eq 200 -and $homePage.Content -match 'validator-ready')
 Check 'home page is English by default' ($homePage.Content -match '<html lang="en"')
+Check 'guest home has no workspace sidebar' ($homePage.Content -notmatch 'tenant-sidebar')
 
 $loginPage = Invoke-Request '/login'
 Check 'login page renders' ($loginPage.Status -eq 200 -and $loginPage.Content -match 'Sign in')
@@ -218,6 +219,12 @@ Check 'the emailed code signs the owner in' ($ownerVerified.Status -eq 303 -and 
 $dashboard = Invoke-Request '/dashboard' -Session $owner
 Check 'dashboard loads for signed-in owner' ($dashboard.Status -eq 200)
 Check 'dashboard shows empty state' ($dashboard.Content -match 'No projects yet')
+$ownerSidebar = [regex]::Match($dashboard.Content, '(?s)<aside class="tenant-sidebar".*?</aside>').Value
+Check 'workspace sidebar renders for the signed-in owner' ($ownerSidebar -match 'tenant-nav__link') "sidebar_length=$($ownerSidebar.Length)"
+Check 'workspace sidebar lists Projects, Team and Organization' ($ownerSidebar -match 'Projects' -and $ownerSidebar -match 'Team' -and $ownerSidebar -match 'Organization')
+Check 'workspace sidebar marks the active item' ($ownerSidebar -match 'aria-current="page"')
+Check 'workspace sidebar has the responsive drawer toggle' ($ownerSidebar -match 'tenant-nav-toggle')
+Check 'tenant owner does not see the platform Action Center shortcut' ($ownerSidebar -notmatch 'Action Center')
 
 Write-Output '--- create project ---'
 $csrf = Get-CsrfToken $dashboard.Content
@@ -462,6 +469,8 @@ $staffAfterToggle = Invoke-Request '/admin' -Session $staff
 Check 'security panel shows two-factor on' ($staffAfterToggle.Content -match '(?s)/admin/security/otp.{0,800}?aria-checked="true"')
 
 $staffDashboard = Invoke-Request '/dashboard' -Session $staff
+$staffSidebar = [regex]::Match($staffDashboard.Content, '(?s)<aside class="tenant-sidebar".*?</aside>').Value
+Check 'staff workspace sidebar includes the Action Center shortcut' ($staffSidebar -match 'Action Center')
 $staffLogoutToken = Get-CsrfToken $staffDashboard.Content
 Invoke-Request '/logout' -Method POST -Session $staff -NoRedirect -Body @{ _csrf = $staffLogoutToken } | Out-Null
 

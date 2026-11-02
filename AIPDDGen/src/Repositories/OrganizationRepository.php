@@ -19,6 +19,35 @@ final class OrganizationRepository
         return Db::selectOne('SELECT * FROM organization_profiles WHERE team_id = ? LIMIT 1', [$teamId]);
     }
 
+    /**
+     * Platform review lookup: staff review across tenants, so this is not
+     * tenant-scoped. Callers are the staff-only review service/controller.
+     */
+    public static function findProfileById(string $profileId): ?array
+    {
+        return Db::selectOne('SELECT * FROM organization_profiles WHERE id = ? LIMIT 1', [$profileId]);
+    }
+
+    /**
+     * Record an admin decision on a submitted profile. The status guard makes
+     * the transition single-shot: a stale form cannot overwrite a decision.
+     *
+     * @param 'verified'|'rejected' $status
+     */
+    public static function markReviewed(string $profileId, string $status, ?string $note): bool
+    {
+        if (!in_array($status, ['verified', 'rejected'], true)) {
+            throw new \InvalidArgumentException('Invalid organization review status');
+        }
+
+        return Db::execute(
+            "UPDATE organization_profiles
+             SET status = ?, reviewed_at = NOW(3), review_note = ?
+             WHERE id = ? AND status = 'submitted'",
+            [$status, $note, $profileId],
+        ) > 0;
+    }
+
     /** Create the profile row on first save (idempotent under concurrent requests). */
     public static function ensureProfile(string $teamId): array
     {

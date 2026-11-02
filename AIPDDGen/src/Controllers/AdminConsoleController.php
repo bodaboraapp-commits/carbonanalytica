@@ -7,9 +7,11 @@ namespace App\Controllers;
 use App\AppError;
 use App\Http;
 use App\I18n;
+use App\Services\OrganizationReviewService;
 use App\Services\PlatformConsoleService;
 use App\Services\PlatformSettingsService;
 use App\Services\TaskCenterService;
+use App\Session;
 use App\View;
 
 /**
@@ -72,15 +74,68 @@ final class AdminConsoleController extends Controller
         ], 'layout_admin');
     }
 
+    /** KYC review screen: filterable queue with inline verify / reject decisions. */
     public function kyc(array $params): never
     {
         $user = $this->staff();
 
         View::render('pages/admin/kyc', [
             'user' => $user,
-            'kyc' => PlatformConsoleService::kycQueue((string) $user['id']),
+            'kyc' => PlatformConsoleService::kycQueue((string) $user['id'], [
+                'status' => (string) (Http::queryString('status') ?? 'submitted'),
+            ]),
+            'errors' => Session::takeErrors(),
+            'focus_id' => (string) (Http::queryString('focus') ?? ''),
             'taskBadge' => PlatformConsoleService::taskBadge((string) $user['id']),
         ], 'layout_admin');
+    }
+
+    /** Verify a submitted organisation (KYC approval). */
+    public function verifyKyc(array $params): never
+    {
+        $this->decideKyc((string) ($params['id'] ?? ''), 'verified');
+    }
+
+    /** Reject a submitted organisation and request changes. */
+    public function rejectKyc(array $params): never
+    {
+        $this->decideKyc((string) ($params['id'] ?? ''), 'rejected');
+    }
+
+    /**
+     * Shared PRG handler for both KYC decisions: validate, record, flash and
+     * return to the queue. Field errors (an empty rejection reason) are shown on
+     * the reviewed row, which is re-opened via `focus`.
+     */
+    private function decideKyc(string $profileId, string $decision): never
+    {
+        $user = $this->staff();
+        $note = (string) (Http::input('review_note') ?? '');
+        $back = '/admin/kyc?status=submitted&focus=' . rawurlencode($profileId);
+
+        try {
+            if ($decision === 'verified') {
+                OrganizationReviewService::verify((string) $user['id'], $profileId, $note);
+            } else {
+                OrganizationReviewService::reject((string) $user['id'], $profileId, $note);
+            }
+            $this->flash('success', t($decision === 'verified' ? 'flash.kyc_verified' : 'flash.kyc_rejected'));
+        } catch (AppError $error) {
+            if ($error->fields !== []) {
+                $this->rememberInput(['review_note' => $note]);
+                Session::errors($error->fields);
+                $this->flash('error', I18n::error('validation_error'));
+            } else {
+                $this->flash('error', I18n::error($error->errorCode));
+            }
+            Http::redirect($back);
+        } catch (\Throwable $error) {
+            error_log('[pdd] KYC decision failed: ' . $error->getMessage());
+            $this->flash('error', t('flash.kyc_failed'));
+            Http::redirect($back);
+        }
+
+        Http::redirect('/admin/kyc?status=submitted');
     }
 
     public function users(array $params): never
