@@ -1,0 +1,27 @@
+# Environment secrets
+.env
+.env.local
+.env.*.local
+
+# Runtime data (sessions, logs, uploads)
+storage/logs/*
+storage/sessions/*
+storage/uploads/*
+!storage/logs/.gitkeep
+!storage/sessions/.gitkeep
+!storage/uploads/.gitkeep
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.idea/
+.vscode/
+*.swp
+
+# Generated HTML previews
+storage/_preview/

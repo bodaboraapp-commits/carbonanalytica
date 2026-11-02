@@ -1,0 +1,32 @@
+# Apache configuration for XAMPP.
+#
+# Point a virtual host at this directory, or open
+#   http://localhost/CarbonAnalytica/AIPDDGen/public/
+# The application detects and honours the subdirectory automatically.
+
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Serve existing files directly (CSS, images).
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Everything else goes to the front controller.
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+# Never expose dotfiles or backup files.
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "\.(env|ini|log|sql|md)$">
+    Require all denied
+</FilesMatch>
+
+# Basic hardening.
+Options -Indexes
+ServerSignature Off
