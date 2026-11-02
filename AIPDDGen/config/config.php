@@ -80,6 +80,20 @@ return [
         'client_secret' => getenv('GOOGLE_CLIENT_SECRET') ?: '',
     ],
 
+    // AI drafting engine (staff console /admin/ai). The provider itself is
+    // configured in the database; these are deployment secrets/limits only.
+    'ai_engine' => [
+        // AES-256-GCM key-encryption secret. Required before an API key can be
+        // stored from the console; keep it in .env.local / the server
+        // environment and never in the repository. Empty = encryption disabled.
+        'secret' => (string) (getenv('AI_ENGINE_SECRET') ?: ''),
+        // Optional server-side fallback key, used only while no key is stored
+        // through the console. Never rendered or logged.
+        'api_key' => (string) (getenv('AI_ENGINE_API_KEY') ?: ''),
+        // HTTP timeout in seconds for one chat-completions request.
+        'timeout' => (int) (getenv('AI_ENGINE_TIMEOUT') ?: 60),
+    ],
+
     'security' => [
         // Session cookies are HTTPS-only when the app URL is https.
         'secure_cookies' => str_starts_with((string) (getenv('APP_URL') ?: 'http://localhost:8000'), 'https://'),

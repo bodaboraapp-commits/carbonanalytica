@@ -10,9 +10,11 @@ declare(strict_types=1);
 use App\Controllers\AdminConsoleController;
 use App\Controllers\AdminDatabaseController;
 use App\Controllers\AdminTaskController;
+use App\Controllers\AiEngineController;
 use App\Controllers\ApiController;
 use App\Controllers\AuthController;
 use App\Controllers\DeployController;
+use App\Controllers\DraftController;
 use App\Controllers\InviteController;
 use App\Controllers\OnboardingController;
 use App\Controllers\PageController;
@@ -32,6 +34,8 @@ $onboarding = new OnboardingController();
 $adminTasks = new AdminTaskController();
 $adminConsole = new AdminConsoleController();
 $adminDatabase = new AdminDatabaseController();
+$aiEngine = new AiEngineController();
+$drafts = new DraftController();
 $deploy = new DeployController();
 $workspaceTasks = new WorkspaceTaskController();
 $api = new ApiController();
@@ -60,6 +64,10 @@ $router->get('/lang/{locale}', [$pages, 'switchLocale']);
 // Signed-in pages.
 $router->get('/dashboard', [$pages, 'dashboard']);
 $router->get('/projects/{id}', [$pages, 'projectShow']);
+
+// AI drafting: manual generation plus the read-only draft page.
+$router->post('/projects/{id}/draft/generate', [$drafts, 'generate']);
+$router->get('/drafts/{id}', [$drafts, 'show']);
 
 // Workspace admin job queue (owner/admin only; workspace-scoped tasks).
 $router->get('/dashboard/tasks', [$workspaceTasks, 'tasks']);
@@ -91,7 +99,11 @@ $router->post('/admin/settings/{key}', [$adminConsole, 'toggleSetting']);
 $router->get('/admin/templates', [$adminConsole, 'templates']);
 $router->get('/admin/audit', [$adminConsole, 'audit']);
 $router->get('/admin/system', [$adminConsole, 'system']);
-$router->get('/admin/ai', [$adminConsole, 'ai']);
+
+// AI Engine settings (SYSTEM group): staff-only provider config + drafting skill.
+$router->get('/admin/ai', [$aiEngine, 'show']);
+$router->post('/admin/ai', [$aiEngine, 'save']);
+$router->post('/admin/ai/test', [$aiEngine, 'testConnection']);
 
 // Deployment: migration ledger, apply migrations, run seed (staff only).
 $router->get('/admin/database', [$adminDatabase, 'show']);

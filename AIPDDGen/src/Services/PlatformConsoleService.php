@@ -378,7 +378,7 @@ final class PlatformConsoleService
 
     /**
      * @param array{q?: string, admin?: string, new?: string, page?: int, per_page?: int} $filters
-     * @return array{rows: list<array<string,mixed>>, total: int, page: int, pages: int}
+     * @return array{rows: list<array<string,mixed>>, total: int, page: int, pages: int, primary_admin_id: string|null}
      */
     public static function users(string $userId, array $filters): array
     {
@@ -428,7 +428,25 @@ final class PlatformConsoleService
             'total' => $total,
             'page' => $page,
             'pages' => max(1, (int) ceil($total / $perPage)),
+            'primary_admin_id' => self::primaryPlatformAdminId(),
         ];
+    }
+
+    /**
+     * The PRIMARY platform super admin is the earliest-created active platform
+     * admin (tie-break id ASC, so the resolution is deterministic). It can never
+     * be demoted, so a deployment always keeps its original super-admin account.
+     */
+    private static function primaryPlatformAdminId(): ?string
+    {
+        $row = Db::selectOne(
+            'SELECT id FROM users
+             WHERE is_platform_admin = 1 AND deleted_at IS NULL
+             ORDER BY created_at ASC, id ASC
+             LIMIT 1',
+        );
+
+        return $row === null ? null : (string) $row['id'];
     }
 
     /** @return array{rows: list<array<string,mixed>>, counts: array<string,int>} */
@@ -551,6 +569,13 @@ final class PlatformConsoleService
             if ($targetUserId === $actorUserId) {
                 // Prevent locking yourself out of the console.
                 throw AppError::conflict('You cannot remove your own platform-admin access.');
+            }
+
+            // The primary super admin (earliest-created active platform admin)
+            // is permanent: no other admin may demote it.
+            $primaryAdminId = self::primaryPlatformAdminId();
+            if ($primaryAdminId !== null && $targetUserId === $primaryAdminId) {
+                throw AppError::conflict('The primary platform administrator cannot be removed.');
             }
 
             $admins = (int) (Db::selectOne('SELECT COUNT(*) AS total FROM users WHERE is_platform_admin = 1 AND deleted_at IS NULL')['total'] ?? 0);

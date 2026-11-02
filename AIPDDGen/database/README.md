@@ -5,7 +5,7 @@ AI PDD Generator schema **plus seed data**.
 
 Contents:
 
-- all 30 tables (schema + migrations ledger marked as applied 0001–0008)
+- all 31 tables (schema + migrations ledger marked as applied 0001–0009)
 - 6 provisional methodologies (Gold Standard / Verra shortlist)
 - Gold Standard Template Guide v1.4 structure (draft, 21 sections)
 - demo workspace: 2 projects, 1 approved fact sheet, 1 draft in review

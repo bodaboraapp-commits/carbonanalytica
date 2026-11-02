@@ -18,6 +18,9 @@ declare(strict_types=1);
 $action = (string) ($_GET['action'] ?? '');
 $tablePage = (int) $audit['page'];
 $recentPage = max(1, (int) $recent_page);
+// Keep these page sizes in sync with AdminConsoleController::audit().
+$auditPerPage = 5;
+$recentPerPage = 5;
 
 // Each panel pages independently but keeps the other panel's state in the URL.
 $auditPageUrl = static function (int $page) use ($action, $recentPage): string {
@@ -44,8 +47,8 @@ $showingLabel = static function (int $page, int $perPage, int $total): string {
         'total' => $total,
     ]);
 };
-$showingAudit = $showingLabel($tablePage, 25, (int) $audit['total']);
-$showingRecent = $showingLabel($recentPage, 5, (int) $recent_total);
+$showingAudit = $showingLabel($tablePage, $auditPerPage, (int) $audit['total']);
+$showingRecent = $showingLabel($recentPage, $recentPerPage, (int) $recent_total);
 ?>
 <div class="admin-page-head">
     <div>

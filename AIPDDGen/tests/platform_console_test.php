@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use App\Db;
 use App\Repositories\UserRepository;
+use App\Services\AiEngineService;
 use App\Services\PlatformConsoleService;
+use App\Services\TaskCenterService;
 use App\Uuid;
 use App\View;
 
@@ -17,6 +19,23 @@ function make_console_staff(string $email = 'console-staff@example.com'): array
     Db::execute('UPDATE users SET is_platform_admin = 1 WHERE id = ?', [(string) $account['user']['id']]);
     $account['user'] = UserRepository::findById((string) $account['user']['id']);
     return $account;
+}
+
+/** Isolate one rendered users-table row so its actions can be asserted. */
+function users_row_markup(string $markup, string $email): string
+{
+    $position = strpos($markup, $email);
+    if ($position === false) {
+        throw new RuntimeException('Users page markup does not list ' . $email);
+    }
+
+    $rowStart = strrpos(substr($markup, 0, $position), '<tr>');
+    $rowEnd = strpos($markup, '</tr>', $position);
+    if ($rowStart === false || $rowEnd === false) {
+        throw new RuntimeException('Could not isolate the users-table row for ' . $email);
+    }
+
+    return substr($markup, $rowStart, $rowEnd - $rowStart);
 }
 
 return [
@@ -360,6 +379,42 @@ return [
         $submitted = PlatformConsoleService::workspaces((string) $staff['user']['id'], ['kyc' => 'submitted']);
         assert_same(1, $submitted['total']);
 
+        // Workspace analytics for the page stat cards: real counts only, plus
+        // the Free/PAYG/Team plan mix from the teams table.
+        $analytics = PlatformConsoleService::workspaceAnalytics((string) $staff['user']['id']);
+        foreach (['total', 'kyc_waiting', 'verified_orgs'] as $key) {
+            assert_true(array_key_exists($key, $analytics), 'missing workspace analytics ' . $key);
+            assert_true(is_int($analytics[$key]), 'workspace analytics ' . $key . ' must be an int');
+            assert_true($analytics[$key] >= 0, 'workspace analytics ' . $key . ' must not be negative');
+        }
+        assert_true($analytics['total'] >= 3, 'workspace analytics must count the real workspaces');
+        assert_true($analytics['kyc_waiting'] >= 1, 'workspace analytics must count the submitted KYC profile');
+        assert_true(is_array($analytics['plans']), 'workspace analytics must expose a plans array');
+        foreach (['free', 'payg', 'team'] as $plan) {
+            assert_true(array_key_exists($plan, $analytics['plans']), 'missing plan ' . $plan);
+            assert_true(is_int($analytics['plans'][$plan]) && $analytics['plans'][$plan] >= 0, 'plan ' . $plan . ' must be a real count');
+        }
+
+        $workspaceMarkup = View::capture('pages/admin/workspaces', [
+            'user' => $staff['user'],
+            'workspaces' => $all,
+            'analytics' => $analytics,
+            'taskBadge' => 0,
+        ]);
+        assert_same(4, substr_count($workspaceMarkup, '<article class="stat-card">'), 'workspaces page must render four analytics cards');
+        foreach ([
+            'workspaces-kpi-title',
+            'stat-grid',
+            t('console.workspaces_title'),
+            t('super.kyc_waiting'),
+            t('super.verified_orgs'),
+            t('console.plan_free'),
+            t('console.plan_payg'),
+            t('console.plan_team'),
+        ] as $marker) {
+            assert_contains($marker, $workspaceMarkup, 'workspaces page markup must contain ' . $marker);
+        }
+
         assert_not_null($bob['team']['id']);
     },
 
@@ -416,6 +471,36 @@ return [
         $newAfter = PlatformConsoleService::users($staffId, ['new' => '1']);
         $newAfterIds = array_map(static fn (array $row): string => (string) $row['id'], $newAfter['rows']);
         assert_false(in_array($oldId, $newAfterIds, true), 'backdated account must not appear in the new-users filter');
+
+        // User analytics for the page stat cards: real counts, with the same
+        // 7-day window the new-users filter uses.
+        $analytics = PlatformConsoleService::userAnalytics($staffId);
+        foreach (['total', 'platform_admins', 'new_7d', 'active_7d'] as $key) {
+            assert_true(array_key_exists($key, $analytics), 'missing user analytics ' . $key);
+            assert_true(is_int($analytics[$key]), 'user analytics ' . $key . ' must be an int');
+            assert_true($analytics[$key] >= 0, 'user analytics ' . $key . ' must not be negative');
+        }
+        assert_true($analytics['total'] >= 3, 'user analytics must count the real accounts');
+        assert_true($analytics['platform_admins'] >= 1, 'user analytics must count the platform admin');
+        assert_true($analytics['new_7d'] >= 2, 'user analytics must count the recently created accounts');
+
+        $usersMarkup = View::capture('pages/admin/users', [
+            'user' => $staff['user'],
+            'users' => $all,
+            'analytics' => $analytics,
+            'taskBadge' => 0,
+        ]);
+        assert_same(4, substr_count($usersMarkup, '<article class="stat-card">'), 'users page must render four analytics cards');
+        foreach ([
+            'users-kpi-title',
+            'stat-grid',
+            t('console.users_title'),
+            t('super.new_users'),
+            t('super.active_users'),
+            t('console.role_platform_admin'),
+        ] as $marker) {
+            assert_contains($marker, $usersMarkup, 'users page markup must contain ' . $marker);
+        }
     },
 
     'KYC queue lists submitted profiles with documents and review state' => static function (): void {
@@ -532,7 +617,7 @@ return [
 
         $pageData = [
             'user' => $staff['user'],
-            'audit' => PlatformConsoleService::audit($staffId, []),
+            'audit' => PlatformConsoleService::audit($staffId, ['per_page' => 5]),
             'recent_audit' => $recent['rows'],
             'recent_page' => $recent['page'],
             'recent_pages' => $recent['pages'],
@@ -541,12 +626,12 @@ return [
         ];
         $markup = View::capture('pages/admin/audit', $pageData);
 
-        // Two-column layout with Recent activity FIRST, then the audit log table.
-        assert_contains('audit-columns', $markup, 'audit page needs the two-column layout');
+        // One stacked column with Recent activity FIRST, then the audit log table.
+        assert_contains('audit-columns', $markup, 'audit page needs the stacked single-column wrapper');
         $recentPos = strpos($markup, 'audit-recent-title');
         $logPos = strpos($markup, 'audit-log-title');
-        assert_true($recentPos !== false && $logPos !== false, 'audit page needs both column headings');
-        assert_true($recentPos < $logPos, 'Recent activity must render before the Audit log column');
+        assert_true($recentPos !== false && $logPos !== false, 'audit page needs both panel headings');
+        assert_true($recentPos < $logPos, 'Recent activity must render before the Audit log panel');
 
         // Recent panel: exactly five list rows and its own next-page link.
         $recentPanel = substr($markup, (int) $recentPos, (int) $logPos - (int) $recentPos);
@@ -558,11 +643,40 @@ return [
         assert_contains('admin-table', $markup, 'audit page needs the audit log table');
         assert_contains(t('console.link_audit'), $markup, 'audit page needs the audit log heading');
         assert_contains('name="action"', $markup, 'audit page needs the action filter');
-        assert_contains('project.created', $markup, 'audit page must render real audit rows');
+        assert_contains(
+            t('console.showing', ['from' => 1, 'to' => 5, 'total' => (int) $pageData['audit']['total']]),
+            $markup,
+            'audit log must label the first page as rows 1–5',
+        );
+        assert_contains('page=2', $markup, 'audit log needs a next-page link on page 1');
+
+        // The audit log table pages five rows at a time, like Recent activity.
+        assert_same(5, count($pageData['audit']['rows']), 'Audit log must render exactly five rows per page');
+        assert_true($pageData['audit']['pages'] >= 2, 'test data must span at least two Audit log pages');
+        assert_same(5, preg_match_all('/<code class="mono">/', $markup), 'audit log table must render exactly five rows on page 1');
+
+        // The earlier project-created entry is pushed to a later page by the
+        // five-row page size, proving the audit table genuinely pages.
+        $pageTwo = PlatformConsoleService::audit($staffId, ['page' => 2, 'per_page' => 5]);
+        assert_true(
+            in_array('project.created', array_column($pageTwo['rows'], 'action'), true),
+            'project.created must appear on a later audit page',
+        );
+        $pageTwoMarkup = View::capture('pages/admin/audit', ['audit' => $pageTwo] + $pageData);
+        assert_contains('project.created', $pageTwoMarkup, 'a later audit page must render the project.created row');
+        assert_contains(
+            t('console.showing', [
+                'from' => 6,
+                'to' => min(10, (int) $pageTwo['total']),
+                'total' => (int) $pageTwo['total'],
+            ]),
+            $pageTwoMarkup,
+            'audit log must label page 2 as rows 6 onwards',
+        );
 
         // The table filter still narrows the table while the recent panel stays.
         $filteredMarkup = View::capture('pages/admin/audit', [
-            'audit' => PlatformConsoleService::audit($staffId, ['action' => 'project.created']),
+            'audit' => PlatformConsoleService::audit($staffId, ['action' => 'project.created', 'per_page' => 5]),
         ] + $pageData);
         assert_contains('audit-recent-title', $filteredMarkup, 'filtering the table must keep the recent panel');
         assert_same(1, preg_match_all('/<code class="mono">/', $filteredMarkup), 'the action filter must narrow the audit table to one row');
@@ -597,23 +711,131 @@ return [
         }, 'a tenant account cannot manage console access');
     },
 
-    'AI Engine page renders the honest not-configured placeholder' => static function (): void {
+    'primary platform super admin cannot be demoted by anyone' => static function (): void {
+        $primary = make_console_staff('console-primary@example.com');
+        $primaryId = (string) $primary['user']['id'];
+        // Deterministic resolution: the primary is the earliest-created active
+        // platform admin (tie-break id), so backdate it past the later sign-ups.
+        Db::execute(
+            'UPDATE users SET created_at = ? WHERE id = ?',
+            [gmdate('Y-m-d H:i:s', time() - 3600), $primaryId],
+        );
+
+        $newer = make_user('console-newer-admin@example.com');
+        $newerId = (string) $newer['user']['id'];
+        PlatformConsoleService::setPlatformAdmin($primaryId, $newerId, true);
+
+        // Real resolution: the earliest-created active platform admin is primary.
+        $users = PlatformConsoleService::users($primaryId, []);
+        assert_same($primaryId, $users['primary_admin_id'], 'the earliest-created active platform admin is the primary super admin');
+
+        // A newer platform admin cannot demote the primary super admin.
+        assert_app_error('conflict', static function () use ($newerId, $primaryId): void {
+            PlatformConsoleService::setPlatformAdmin($newerId, $primaryId, false);
+        }, 'the primary super admin cannot be removed by another admin');
+        assert_same(1, (int) UserRepository::findById($primaryId)['is_platform_admin'], 'the primary super admin must stay an admin');
+
+        // Granting/removing ordinary admins still works: the primary can demote
+        // the newer admin.
+        $demoted = PlatformConsoleService::setPlatformAdmin($primaryId, $newerId, false);
+        assert_same(0, (int) $demoted['is_platform_admin']);
+
+        // The last remaining admin (the primary) still cannot remove itself.
+        assert_app_error('conflict', static function () use ($primaryId): void {
+            PlatformConsoleService::setPlatformAdmin($primaryId, $primaryId, false);
+        }, 'self-demotion of the last admin is refused');
+
+        // Users page: the primary row's Remove control is disabled and renders no
+        // active POST form; a non-primary admin row keeps its working form.
+        PlatformConsoleService::setPlatformAdmin($primaryId, $newerId, true);
+        $markup = View::capture('pages/admin/users', [
+            'user' => UserRepository::findById($primaryId),
+            'users' => PlatformConsoleService::users($primaryId, []),
+            'analytics' => PlatformConsoleService::userAnalytics($primaryId),
+            'taskBadge' => 0,
+        ]);
+
+        $primaryRow = users_row_markup($markup, (string) $primary['user']['email']);
+        assert_contains('aria-disabled="true"', $primaryRow, 'the primary super admin row must expose a disabled Remove control');
+        assert_contains(' disabled', $primaryRow, 'the primary super admin Remove control must be disabled');
+        assert_false(str_contains($primaryRow, '/platform-admin'), 'the primary super admin row must not render an active removal POST form');
+        assert_contains(t('console.role_platform_admin'), $primaryRow, 'the primary super admin keeps the Platform admin badge');
+
+        $newerRow = users_row_markup($markup, (string) $newer['user']['email']);
+        assert_contains('/platform-admin', $newerRow, 'non-primary admin rows keep their removal form');
+        assert_false(str_contains($newerRow, 'aria-disabled="true"'), 'non-primary admin rows are not disabled');
+    },
+
+    'AI Engine page renders the real settings surface' => static function (): void {
         $staff = make_console_staff('console-ai@example.com');
 
         $markup = View::capture('pages/admin/ai', [
             'user' => $staff['user'],
             'taskBadge' => 0,
+            'settings' => AiEngineService::publicSettings(),
+            'errors' => [],
         ]);
 
         assert_contains(t('ai.title'), $markup, 'AI Engine page must render its title');
         assert_contains(t('ai.sub'), $markup, 'AI Engine page must render its subtitle');
-        assert_contains(t('ai.status'), $markup, 'AI Engine page must state the real not-configured status');
-        assert_contains(t('ai.badge'), $markup, 'AI Engine page must render the not-configured badge');
+        assert_contains(t('ai.settings_title'), $markup, 'AI Engine page must render the provider settings section');
+        assert_contains(t('ai.settings_sub'), $markup, 'AI Engine page must explain the settings are staff-only');
+        assert_contains(t('ai.status_not_configured'), $markup, 'unconfigured engine must render the not-configured status');
+        assert_contains(t('ai.api_key_write_only'), $markup, 'the API key field must state it is write-only');
         assert_contains('panel-card', $markup, 'AI Engine page must use the standard panel card');
 
-        // No provider/model/API-key settings are invented on an unconfigured build.
-        foreach (['api_key', 'API key', 'openai', 'model_name', 'temperature'] as $invented) {
-            assert_false(str_contains($markup, $invented), 'AI Engine page must not invent the setting ' . $invented);
+        // Never leak secrets or ciphertext into the rendered page.
+        $settings = AiEngineService::publicSettings();
+        assert_false(array_key_exists('api_key_ciphertext', $settings), 'public settings must not expose the ciphertext');
+        foreach (['v1:', 'cipher', 'AI_ENGINE_SECRET='] as $secretFragment) {
+            assert_false(str_contains($markup, $secretFragment), 'AI Engine page must not render secret material ' . $secretFragment);
+        }
+    },
+
+    'job queue renders analytics stat cards from real summary counters' => static function (): void {
+        $staff = make_console_staff('console-queue-cards@example.com');
+        $staffId = (string) $staff['user']['id'];
+        $queue = TaskCenterService::queue($staffId, []);
+
+        foreach (['open_total', 'unassigned', 'assigned_to_me', 'breached'] as $key) {
+            assert_true(array_key_exists($key, $queue['summary']), 'missing queue summary ' . $key);
+            assert_true(is_int($queue['summary'][$key]), 'queue summary ' . $key . ' must be an int');
+            assert_true($queue['summary'][$key] >= 0, 'queue summary ' . $key . ' must not be negative');
+        }
+
+        $markup = View::capture('pages/admin/tasks', [
+            'user' => $staff['user'],
+            'queue' => $queue,
+            'taskBadge' => 0,
+        ]);
+        assert_same(4, substr_count($markup, '<article class="stat-card">'), 'job queue must render four analytics cards');
+        foreach ([
+            'queue-kpi-title',
+            'stat-grid',
+            t('admin.scope_open'),
+            t('admin.scope_unassigned'),
+            t('admin.scope_mine'),
+            t('admin.scope_breached'),
+        ] as $marker) {
+            assert_contains($marker, $markup, 'job queue markup must contain ' . $marker);
+        }
+
+        // Each rendered card value is the real summary counter, not a placeholder.
+        $cards = [
+            'open_total' => t('admin.scope_open'),
+            'unassigned' => t('admin.scope_unassigned'),
+            'assigned_to_me' => t('admin.scope_mine'),
+            'breached' => t('admin.scope_breached'),
+        ];
+        foreach ($cards as $key => $label) {
+            assert_same(
+                1,
+                preg_match(
+                    '/stat-card__label">' . preg_quote($label, '/') . '<\/span>\s*<\/div>\s*<span class="stat-card__value">' . $queue['summary'][$key] . '<\/span>/',
+                    $markup,
+                ),
+                'job queue card ' . $key . ' must show the real counter',
+            );
         }
     },
 ];

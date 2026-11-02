@@ -26,7 +26,7 @@ return [
             'projects', 'inputs', 'facts', 'fact_sheet_versions',
             'drafts', 'draft_sections', 'draft_versions', 'comments',
             'gap_reports', 'gap_items', 'audit_logs', 'schema_migrations',
-            'platform_settings',
+            'platform_settings', 'ai_engine_settings',
         ];
 
         foreach ($expected as $table) {

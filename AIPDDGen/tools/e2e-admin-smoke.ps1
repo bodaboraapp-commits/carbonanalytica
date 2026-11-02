@@ -78,7 +78,7 @@ Check 'super admin dashboard renders' ($dashboard.Status -eq 200 -and $dashboard
 Check 'KPI tiles present' ($dashboard.Content -match 'Platform statistics')
 Check 'growth stats present' ($dashboard.Content -match 'Growth and activity')
 Check 'system health menu item present' ($dashboard.Content -match 'System Health' -and $dashboard.Content -match '/admin/system')
-Check 'AI Engine menu item present' ($dashboard.Content -match 'AI Engine' -and $dashboard.Content -match '/admin/ai')
+Check 'AI Engine menu item present' ($dashboard.Content -match '(AI Engine|Moteur IA)' -and $dashboard.Content -match '/admin/ai')
 Check 'platform controls present' ($dashboard.Content -match 'Platform controls' -and $dashboard.Content -match 'Maintenance mode')
 Check 'quick actions present' ($dashboard.Content -match 'Review KYC' -and $dashboard.Content -match 'Open queue')
 Check 'platform totals moved to system health' (-not ($dashboard.Content -match 'Platform totals'))
@@ -113,7 +113,6 @@ $consolePages = @{
     '/admin/templates'  = 'Template library'
     '/admin/audit'      = 'Audit'
     '/admin/system'     = 'System Health'
-    '/admin/ai'         = 'AI Engine'
     '/admin/database'   = 'Database'
 }
 foreach ($page in $consolePages.GetEnumerator()) {
@@ -121,8 +120,8 @@ foreach ($page in $consolePages.GetEnumerator()) {
     Check "console page $($page.Key)" ($res.Status -eq 200 -and $res.Content -match [regex]::Escape($page.Value)) "status=$($res.Status)"
 }
 
-$aiPage = Invoke-Request '/admin/ai' -Session $staff
-Check 'AI Engine page shows the honest not-configured placeholder' ($aiPage.Status -eq 200 -and $aiPage.Content -match 'Not configured' -and $aiPage.Content -match 'not configured in this deployment') "status=$($aiPage.Status)"
+$aiPage = Invoke-Request '/admin/ai?lang=en' -Session $staff
+Check 'AI Engine settings page renders' ($aiPage.Status -eq 200 -and $aiPage.Content -match 'ai-settings' -and $aiPage.Content -match 'name="api_key"' -and $aiPage.Content -match 'name="model"') "status=$($aiPage.Status)"
 Check 'AI Engine nav item is active on its page' ($aiPage.Content -match [regex]::Escape('/admin/ai') -and $aiPage.Content -match 'aria-current="page"')
 
 $systemTotals = Invoke-Request '/admin/system' -Session $staff

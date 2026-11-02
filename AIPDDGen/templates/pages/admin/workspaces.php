@@ -5,6 +5,7 @@ declare(strict_types=1);
 /**
  * @var array<string, mixed> $user
  * @var array{rows: list<array<string,mixed>>, total: int, page: int, pages: int} $workspaces
+ * @var array{total: int, kyc_waiting: int, verified_orgs: int, plans: array{free: int, payg: int, team: int}} $analytics
  * @var int $taskBadge
  */
 
@@ -33,6 +34,14 @@ $kycBadge = static function (string $status): string {
     </div>
     <span class="admin-muted"><?= e(t('console.showing', ['from' => $workspaces['total'] === 0 ? 0 : (($workspaces['page'] - 1) * 20) + 1, 'to' => min($workspaces['page'] * 20, $workspaces['total']), 'total' => $workspaces['total']])) ?></span>
 </div>
+
+<section class="stat-grid" aria-labelledby="workspaces-kpi-title">
+    <h2 class="visually-hidden" id="workspaces-kpi-title"><?= e(t('console.workspaces_title')) ?></h2>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('console.workspaces_title'), 'value' => (string) $analytics['total'], 'icon' => 'layers', 'tone' => 'green']); ?>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('super.kyc_waiting'), 'value' => (string) $analytics['kyc_waiting'], 'icon' => 'inbox', 'tone' => 'blue']); ?>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('super.verified_orgs'), 'value' => (string) $analytics['verified_orgs'], 'icon' => 'shield', 'tone' => 'green']); ?>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('console.plan_free') . ' / ' . t('console.plan_payg') . ' / ' . t('console.plan_team'), 'value' => $analytics['plans']['free'] . ' / ' . $analytics['plans']['payg'] . ' / ' . $analytics['plans']['team'], 'icon' => 'tag', 'tone' => 'gold']); ?>
+</section>
 
 <form class="admin-filters" method="get" action="<?= e(url('/admin/workspaces')) ?>" role="search">
     <div class="admin-filters__field admin-filters__field--grow">

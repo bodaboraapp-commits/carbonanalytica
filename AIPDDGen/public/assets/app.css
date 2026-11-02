@@ -1807,20 +1807,16 @@ a.stepper__link:hover .stepper__title { text-decoration: underline; text-underli
   .console-columns { grid-template-columns: 1fr; }
 }
 
-/* Audit & security: leading recent-activity list + full audit table side by side */
+/* Audit & security: one stacked column — recent activity first, audit table below */
 
 .audit-columns {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  grid-template-columns: 1fr;
   gap: 1.25rem;
   align-items: start;
 }
 
 .audit-columns .admin-pagination { flex-wrap: wrap; }
-
-@media (max-width: 900px) {
-  .audit-columns { grid-template-columns: 1fr; }
-}
 
 @media (max-width: 640px) {
   .kpi-grid--3 { grid-template-columns: 1fr; }
@@ -2418,8 +2414,8 @@ a.stepper__link:hover .stepper__title { text-decoration: underline; text-underli
 .growth-bars__swatch--previous { background: color-mix(in srgb, var(--brand) 26%, var(--line)); }
 
 /* Remaining growth numbers, compact. Sits above the two charts.
-   Each figure is a big digit with its metric label as a small raised
-   (superscript) caption, so long labels never wrap into the number row. */
+   Each figure is a big digit with its metric label as a small subscript
+   caption, so long labels never wrap into the number row. */
 .growth-strip {
   display: flex;
   flex-wrap: wrap;
@@ -2453,7 +2449,8 @@ a.stepper__link:hover .stepper__title { text-decoration: underline; text-underli
 .growth-strip dt {
   order: 2;
   position: relative;
-  top: -0.85em;
+  /* Caption sits below the number's baseline as a small subscript. */
+  top: 0.5em;
   font-size: 0.66rem;
   font-weight: 650;
   letter-spacing: 0.04em;

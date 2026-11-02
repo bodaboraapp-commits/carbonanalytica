@@ -26,6 +26,12 @@ ServerSignature Off
     # Deployment diagnostic (delete public/health.php after use).
     RewriteRule ^health\.php$ public/health.php [L]
 
+    # Language-switch route: /lang/en and /lang/fr must reach the front
+    # controller. This exception has to come BEFORE the internals block below,
+    # which otherwise 403s the route because it collides with the physical
+    # lang/ directory (breaks the EN/FR toggle on subdirectory deployments).
+    RewriteRule ^lang/(en|fr)/?$ index.php [L]
+
     # Application internals are never served directly.
     RewriteRule ^(src|storage|database|docs|tests|bin|config|lang|migrations|templates|tools)(/|$) - [F,L]
 

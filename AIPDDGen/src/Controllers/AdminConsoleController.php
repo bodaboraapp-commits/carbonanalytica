@@ -125,6 +125,8 @@ final class AdminConsoleController extends Controller
             'audit' => PlatformConsoleService::audit((string) $user['id'], [
                 'action' => (string) (Http::queryString('action') ?? ''),
                 'page' => (int) (Http::queryString('page') ?? 1),
+                // The audit table pages five rows at a time (matching Recent activity).
+                'per_page' => 5,
             ]),
             'recent_audit' => $recent['rows'],
             'recent_page' => $recent['page'],

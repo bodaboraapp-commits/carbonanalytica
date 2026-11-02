@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 /**
  * @var array<string, mixed> $user
- * @var array{rows: list<array<string,mixed>>, total: int, page: int, pages: int} $users
+ * @var array{rows: list<array<string,mixed>>, total: int, page: int, pages: int, primary_admin_id: string|null} $users
+ * @var array{total: int, platform_admins: int, new_7d: int, active_7d: int} $analytics
  * @var int $taskBadge
  */
 
@@ -22,6 +23,8 @@ $pageUrl = static function (int $page) use ($filters): string {
     ]);
     return url('/admin/users') . ($params !== [] ? '?' . http_build_query($params) : '');
 };
+// The primary super admin (earliest-created active platform admin) is permanent.
+$primaryAdminId = $users['primary_admin_id'] ?? null;
 ?>
 <div class="admin-page-head">
     <div>
@@ -30,6 +33,14 @@ $pageUrl = static function (int $page) use ($filters): string {
     </div>
     <span class="admin-muted"><?= e(t('console.showing', ['from' => $users['total'] === 0 ? 0 : (($users['page'] - 1) * 20) + 1, 'to' => min($users['page'] * 20, $users['total']), 'total' => $users['total']])) ?></span>
 </div>
+
+<section class="stat-grid" aria-labelledby="users-kpi-title">
+    <h2 class="visually-hidden" id="users-kpi-title"><?= e(t('console.users_title')) ?></h2>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('console.users_title'), 'value' => (string) $analytics['total'], 'icon' => 'users', 'tone' => 'green']); ?>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('super.new_users') . ' (' . t('super.last_7_days') . ')', 'value' => (string) $analytics['new_7d'], 'icon' => 'chart', 'tone' => 'blue']); ?>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('super.active_users'), 'value' => (string) $analytics['active_7d'], 'icon' => 'shield', 'tone' => 'green']); ?>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('console.role_platform_admin'), 'value' => (string) $analytics['platform_admins'], 'icon' => 'users', 'tone' => 'gold']); ?>
+</section>
 
 <form class="admin-filters" method="get" action="<?= e(url('/admin/users')) ?>" role="search">
     <div class="admin-filters__field admin-filters__field--grow">
@@ -75,7 +86,11 @@ $pageUrl = static function (int $page) use ($filters): string {
                 </thead>
                 <tbody>
                     <?php foreach ($users['rows'] as $row): ?>
-                        <?php $isAdmin = (int) $row['is_platform_admin'] === 1; $isSelf = (string) $row['id'] === (string) $user['id']; ?>
+                        <?php
+                        $isAdmin = (int) $row['is_platform_admin'] === 1;
+                        $isSelf = (string) $row['id'] === (string) $user['id'];
+                        $isPrimary = $isAdmin && $primaryAdminId !== null && (string) $row['id'] === (string) $primaryAdminId;
+                        ?>
                         <tr>
                             <td>
                                 <strong class="admin-task-title"><?= e((string) $row['name']) ?></strong>
@@ -93,14 +108,21 @@ $pageUrl = static function (int $page) use ($filters): string {
                             <td class="admin-muted"><?= e(format_date((string) $row['created_at'])) ?></td>
                             <td class="admin-muted"><?= e($row['last_seen_at'] !== null ? format_date((string) $row['last_seen_at']) : t('console.never')) ?></td>
                             <td>
-                                <form class="inline-form" method="post" action="<?= e(url('/admin/users/' . $row['id'] . '/platform-admin')) ?>">
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="enabled" value="<?= $isAdmin ? '0' : '1' ?>">
-                                    <button class="btn btn--sm <?= $isAdmin ? 'btn--danger' : 'btn--secondary' ?>" type="submit"
-                                        <?= ($isAdmin && $isSelf) ? 'disabled title="' . e(t('console.cannot_self_demote')) . '"' : '' ?>>
-                                        <?= e($isAdmin ? t('console.remove_admin') : t('console.make_admin')) ?>
+                                <?php if ($isPrimary): ?>
+                                    <button class="btn btn--sm btn--danger" type="button" aria-disabled="true" disabled
+                                        <?= $isSelf ? 'title="' . e(t('console.cannot_self_demote')) . '"' : '' ?>>
+                                        <?= e(t('console.remove_admin')) ?>
                                     </button>
-                                </form>
+                                <?php else: ?>
+                                    <form class="inline-form" method="post" action="<?= e(url('/admin/users/' . $row['id'] . '/platform-admin')) ?>">
+                                        <?= csrf_field() ?>
+                                        <input type="hidden" name="enabled" value="<?= $isAdmin ? '0' : '1' ?>">
+                                        <button class="btn btn--sm <?= $isAdmin ? 'btn--danger' : 'btn--secondary' ?>" type="submit"
+                                            <?= ($isAdmin && $isSelf) ? 'disabled title="' . e(t('console.cannot_self_demote')) . '"' : '' ?>>
+                                            <?= e($isAdmin ? t('console.remove_admin') : t('console.make_admin')) ?>
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>

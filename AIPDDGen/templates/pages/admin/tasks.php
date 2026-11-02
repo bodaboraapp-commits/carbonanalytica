@@ -52,6 +52,14 @@ $lastShown = min($queue['page'] * 25, $queue['total']);
     <a class="admin-link-arrow" href="<?= e(url('/admin')) ?>"><?= e(t('admin.action_center')) ?> <span aria-hidden="true">&#8594;</span></a>
 </div>
 
+<section class="stat-grid" aria-labelledby="queue-kpi-title">
+    <h2 class="visually-hidden" id="queue-kpi-title"><?= e(t('admin.job_queue')) ?></h2>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('admin.scope_open'), 'value' => (string) $queue['summary']['open_total'], 'icon' => 'layers', 'tone' => 'blue']); ?>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('admin.scope_unassigned'), 'value' => (string) $queue['summary']['unassigned'], 'icon' => 'inbox', 'tone' => 'gold']); ?>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('admin.scope_mine'), 'value' => (string) $queue['summary']['assigned_to_me'], 'icon' => 'users', 'tone' => 'green']); ?>
+    <?php \App\View::partial('partials/stat-card', ['label' => t('admin.scope_breached'), 'value' => (string) $queue['summary']['breached'], 'icon' => 'reject', 'tone' => 'danger']); ?>
+</section>
+
 <form class="admin-filters" method="get" action="<?= e(url('/admin/tasks')) ?>" role="search">
     <div class="admin-filters__field">
         <label for="filter-scope"><?= e(t('admin.filter_scope')) ?></label>
