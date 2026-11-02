@@ -64,7 +64,8 @@ final class AuthController extends Controller
                 Auth::login($user);
                 Session::set('default_team_id', $user['default_team_id']);
                 $this->flash('success', t('flash.signed_in'));
-                Http::redirect($next);
+                // Platform staff land on the Super Admin dashboard by default.
+                Http::redirect($this->landingFor($next, $user));
             }
 
             $challenge = AuthService::startOtpChallenge($user, 'signin');
@@ -251,7 +252,7 @@ final class AuthController extends Controller
 
             $this->flash('success', $result['newly_verified'] ? t('flash.email_verified') : t('flash.signed_in'));
             $next = $this->safeNext(is_string($pending['next'] ?? null) ? $pending['next'] : null);
-            Http::redirect($next);
+            Http::redirect($this->landingFor($next, $user));
         } catch (AppError $error) {
             if ($error->fields !== []) {
                 Session::errors($error->fields);
@@ -327,11 +328,26 @@ final class AuthController extends Controller
             Auth::login($user);
             Session::set('default_team_id', $user['default_team_id']);
             $this->flash('success', t('flash.signed_in'));
-            Http::redirect('/dashboard');
+            Http::redirect($this->landingFor('/dashboard', $user));
         } catch (AppError $error) {
             $this->flash('error', I18n::error($error->errorCode));
             Http::redirect('/login');
         }
+    }
+
+    /**
+     * Platform staff are taken straight to the Super Admin dashboard after
+     * sign-in unless the request carried an explicit destination.
+     *
+     * @param array<string, mixed> $user
+     */
+    private function landingFor(string $next, array $user): string
+    {
+        if ($next === '/dashboard' && (int) ($user['is_platform_admin'] ?? 0) === 1) {
+            return '/admin';
+        }
+
+        return $next;
     }
 
     /**

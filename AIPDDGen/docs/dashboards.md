@@ -51,6 +51,8 @@ The workspace dashboard shows a **Team** card listing both groups with names, em
 
 ### Super Admin dashboard (`/admin`)
 
+Platform staff land here automatically after sign-in (a plain login redirects `/dashboard` → `/admin` for platform admins; an explicit `next=` destination is still honoured). Tenant accounts get **404** on every console page.
+
 The overview is the **Super Admin dashboard**:
 
 - **Stats**: workspaces, projects, users, open review tasks (with breached-SLA badge), plus platform totals (KYC waiting, verified organisations, published templates, documents, plans).

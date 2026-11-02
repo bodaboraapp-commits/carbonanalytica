@@ -445,7 +445,7 @@ if ($staffLogin.Status -eq 303 -and $staffLogin.Location -like '*/verify-otp*') 
     # A previous run left the preference on: finish its challenge first.
     $staffLogin = Complete-Otp -Email 'admin@pddgen.local' -Session $staff
 }
-Check 'staff account signs in with the password' ($staffLogin.Status -eq 303 -and $staffLogin.Location -like '*/dashboard*') "location=$($staffLogin.Location)"
+Check 'staff account signs in with the password' ($staffLogin.Status -eq 303 -and $staffLogin.Location -like '*/admin*') "location=$($staffLogin.Location)"
 
 $staffAdmin = Invoke-Request '/admin' -Session $staff
 Check 'staff console shows the security panel' ($staffAdmin.Status -eq 200 -and $staffAdmin.Content -match 'Two-factor sign-in')
@@ -479,7 +479,7 @@ $staffCodePage = Invoke-Request '/verify-otp' -Session $staff2
 $staffBoxes = ([regex]::Matches($staffCodePage.Content, 'name="code\[\]"')).Count
 Check 'sign-in challenge shows six digit boxes' ($staffBoxes -eq 6) "boxes=$staffBoxes"
 $staffVerified = Complete-Otp -Email 'admin@pddgen.local' -Session $staff2
-Check 'the sign-in code completes the two-factor login' ($staffVerified.Status -eq 303 -and $staffVerified.Location -like '*/dashboard*') "location=$($staffVerified.Location)"
+Check 'the sign-in code completes the two-factor login' ($staffVerified.Status -eq 303 -and $staffVerified.Location -like '*/admin*') "location=$($staffVerified.Location)"
 
 $staffAdmin2 = Invoke-Request '/admin' -Session $staff2
 $staffAdminToken2 = Get-CsrfToken $staffAdmin2.Content
