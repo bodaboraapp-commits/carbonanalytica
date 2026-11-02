@@ -19,6 +19,7 @@ The PRD proposed PostgreSQL + pgvector. The product owner chose the XAMPP PHP + 
 | Enumerations | MySQL `ENUM` | Values are a closed set owned by the product, not user data. |
 | Structured data | `JSON` columns | Template format rules, settings, citations and snapshots evolve faster than tables. |
 | Partial uniqueness | `PERSISTENT` generated columns + unique index | MySQL has no partial indexes; this reproduces "one owner per team" and "one live invitation per email". |
+| Generated columns | **Numeric flags, never CHAR expressions** | MariaDB 10.5+ refuses expressions whose result depends on `sql_mode=PAD_CHAR_TO_FULL_LENGTH` in STORED generated columns (`ERROR 1901`), so a CHAR copy of `team_id` cannot be imported there. `owner_scope` is `TINYINT` (1 = owner, NULL otherwise) and the key is `(team_id, owner_scope)` — see [ADR-011](decisions.md#adr-011-portable-one-owner-per-team-key). |
 | Tenant key | `team_id` on every tenant-owned row | Every tenant query filters on it; the access layer (`src/Tenancy.php`) is the only way to obtain it. |
 
 ---
@@ -121,7 +122,7 @@ Wizard progress is **derived** from these rows ([organization onboarding](organi
 ## 4. Invariants the schema enforces
 
 1. **Case-insensitive email uniqueness** — one person, one email, regardless of typing case.
-2. **Exactly one owner per team** — the generated `owner_scope` column makes a second `owner` row impossible even under concurrency.
+2. **Exactly one owner per team** — `owner_scope` is a generated `TINYINT` flag (1 for the owner, NULL for everyone else) with a unique `(team_id, owner_scope)` index. NULLs repeat in a unique index, so only owners are constrained; a second owner row is impossible even under concurrency, and the definition remains importable on MariaDB 10.5+ (ADR-011).
 3. **One live invitation per email per team** — dead invitations (accepted/revoked) leave the unique index's scope, so re-inviting later works.
 4. **No draft without an approved fact sheet and a recorded template version** — both FKs are `NOT NULL`.
 5. **No orphan tenant data** — every tenant-owned row cascades from `teams`; audit rows survive with `SET NULL`.

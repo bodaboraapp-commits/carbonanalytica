@@ -6,7 +6,9 @@ namespace App\Services;
 
 use App\AppError;
 use App\Audit;
+use App\Config;
 use App\Db;
+use App\Migrator;
 use App\Repositories\ReviewTaskRepository;
 use App\Repositories\UserRepository;
 
@@ -42,20 +44,92 @@ final class PlatformConsoleService
             ? (int) (Db::selectOne("SELECT COUNT(*) AS total FROM organization_profiles WHERE status = 'rejected'")['total'] ?? 0)
             : 0;
 
+        // Super Admin: growth, activity and overall totals.
+        $since = static fn (int $days): string => gmdate('Y-m-d H:i:s', time() - $days * 86400);
+        $metrics['admins'] = (int) (Db::selectOne('SELECT COUNT(*) AS total FROM users WHERE is_platform_admin = 1 AND deleted_at IS NULL')['total'] ?? 0);
+        $metrics['signups_7d'] = (int) (Db::selectOne('SELECT COUNT(*) AS total FROM users WHERE deleted_at IS NULL AND created_at >= ?', [$since(7)])['total'] ?? 0);
+        $metrics['signups_30d'] = (int) (Db::selectOne('SELECT COUNT(*) AS total FROM users WHERE deleted_at IS NULL AND created_at >= ?', [$since(30)])['total'] ?? 0);
+        $metrics['projects_7d'] = (int) (Db::selectOne('SELECT COUNT(*) AS total FROM projects WHERE deleted_at IS NULL AND created_at >= ?', [$since(7)])['total'] ?? 0);
+        $metrics['drafts_7d'] = (int) (Db::selectOne('SELECT COUNT(*) AS total FROM drafts WHERE created_at >= ?', [$since(7)])['total'] ?? 0);
+        $metrics['active_7d'] = (int) (Db::selectOne('SELECT COUNT(*) AS total FROM users WHERE deleted_at IS NULL AND last_seen_at >= ?', [$since(7)])['total'] ?? 0);
+        $metrics['audit_24h'] = (int) (Db::selectOne('SELECT COUNT(*) AS total FROM audit_logs WHERE created_at >= ?', [$since(1)])['total'] ?? 0);
+        $metrics['facts_total'] = (int) (Db::selectOne('SELECT COUNT(*) AS total FROM facts')['total'] ?? 0);
+        $metrics['review_breached'] = (int) (Db::selectOne(
+            "SELECT COUNT(*) AS total FROM review_tasks
+             WHERE status IN ('unassigned','in_progress','blocked') AND due_at IS NOT NULL AND due_at < NOW(3)",
+        )['total'] ?? 0);
+        // Platform-wide Admin/Creator + Staff/Worker headcount across every workspace.
+        $metrics['creators_total'] = (int) (Db::selectOne(
+            "SELECT COUNT(*) AS total FROM team_members WHERE status = 'active' AND role IN ('owner','admin')",
+        )['total'] ?? 0);
+        $metrics['staff_total'] = (int) (Db::selectOne(
+            "SELECT COUNT(*) AS total FROM team_members WHERE status = 'active' AND role IN ('editor','viewer')",
+        )['total'] ?? 0);
+
+        // System health for the control panel.
+        $pendingMigrations = 0;
+        try {
+            $pendingMigrations = count(Migrator::status(Db::pdo(), APP_ROOT . '/migrations')['pending']);
+        } catch (\Throwable) {
+            $pendingMigrations = -1;
+        }
+        $dbSize = (float) (Db::selectOne(
+            'SELECT ROUND((SUM(data_length) + SUM(index_length)) / 1024 / 1024, 1) AS total
+             FROM information_schema.tables WHERE table_schema = DATABASE()',
+        )['total'] ?? 0);
+        $diskFree = @disk_free_space(APP_ROOT);
+        $system = [
+            'db_size_mb' => $dbSize,
+            'storage_mb' => round(self::directorySize(APP_ROOT . '/storage') / 1024 / 1024, 1),
+            'disk_free_mb' => $diskFree !== false ? round($diskFree / 1024 / 1024) : -1,
+            'pending_migrations' => $pendingMigrations,
+            'php' => PHP_VERSION,
+            'env' => (string) Config::get('app.env'),
+            'url' => (string) Config::get('app.url'),
+            'mail' => (string) Config::get('email.transport'),
+        ];
+
         $plans = Db::select('SELECT plan, COUNT(*) AS total FROM teams WHERE deleted_at IS NULL GROUP BY plan');
         $planCounts = [];
         foreach ($plans as $row) {
             $planCounts[(string) $row['plan']] = (int) $row['total'];
         }
 
+        $recentUsers = Db::select(
+            'SELECT id, name, email, is_platform_admin, email_verified_at, created_at
+             FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 5',
+        );
+
         return [
             'metrics' => $metrics,
+            'system' => $system,
+            'settings' => PlatformSettingsService::all(),
             'plans' => $planCounts,
             'recent_audit' => self::audit($userId, ['per_page' => 8])['rows'],
             'recent_workspaces' => self::workspaces($userId, ['per_page' => 5])['rows'],
+            'recent_users' => $recentUsers,
             'kyc_preview' => self::kycQueue($userId)['rows'],
             'templates_preview' => self::templates($userId)['rows'],
         ];
+    }
+
+    private static function directorySize(string $path): int
+    {
+        if (!is_dir($path)) {
+            return 0;
+        }
+
+        $size = 0;
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
+        );
+        foreach ($iterator as $file) {
+            if ($file->isFile()) {
+                $size += (int) $file->getSize();
+            }
+        }
+
+        return $size;
     }
 
     /**
@@ -98,6 +172,11 @@ final class PlatformConsoleService
             "SELECT t.id, t.name, t.slug, t.plan, t.created_at,
                     op.status AS kyc_status, op.legal_name, op.submitted_at,
                     (SELECT COUNT(*) FROM team_members tm WHERE tm.team_id = t.id AND tm.status = 'active') AS members,
+                    (SELECT COUNT(*) FROM team_members tm WHERE tm.team_id = t.id AND tm.status = 'active' AND tm.role IN ('owner','admin')) AS creators,
+                    (SELECT COUNT(*) FROM team_members tm WHERE tm.team_id = t.id AND tm.status = 'active' AND tm.role IN ('editor','viewer')) AS staff,
+                    (SELECT u.name FROM team_members tm
+                     INNER JOIN users u ON u.id = tm.user_id
+                     WHERE tm.team_id = t.id AND tm.status = 'active' AND tm.role = 'owner' LIMIT 1) AS creator_name,
                     (SELECT COUNT(*) FROM projects p WHERE p.team_id = t.id AND p.deleted_at IS NULL) AS projects,
                     (SELECT MAX(al.created_at) FROM audit_logs al WHERE al.team_id = t.id) AS last_activity
              FROM teams t

@@ -79,6 +79,7 @@ $router->get('/admin/workspaces', [$adminConsole, 'workspaces']);
 $router->get('/admin/kyc', [$adminConsole, 'kyc']);
 $router->get('/admin/users', [$adminConsole, 'users']);
 $router->post('/admin/users/{id}/platform-admin', [$adminConsole, 'togglePlatformAdmin']);
+$router->post('/admin/settings/{key}', [$adminConsole, 'toggleSetting']);
 $router->get('/admin/templates', [$adminConsole, 'templates']);
 $router->get('/admin/audit', [$adminConsole, 'audit']);
 

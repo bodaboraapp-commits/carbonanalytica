@@ -1921,3 +1921,29 @@ a.stepper__link:hover .stepper__title { text-decoration: underline; text-underli
 @media (max-width: 640px) {
   .admin-nav-toggle { order: 0; }
 }
+
+/* Super Admin dashboard ------------------------------------------------- */
+
+.super-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.meta-grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+@media (max-width: 760px) {
+  .meta-grid--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Workspace team groups -------------------------------------------------- */
+
+.team-group__title {
+  margin: 0 0 0.45rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}

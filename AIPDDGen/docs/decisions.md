@@ -159,3 +159,33 @@ Short records of the choices that shape the codebase. Each one lists the context
 - (−) The Resend key is a deployment secret; it belongs in `.env.local`/environment, never in the repository.
 
 **Update (same day, product–owner feedback):** the sign-in second factor is now **opt-in per account** (`users.otp_enabled`, default off; migration `0006_otp_preference.sql`). Sign-in sends a code only when the account has switched it on from the staff Action Center; sign-up email verification still always uses a code. The code screen renders six single-digit boxes, assembled server-side by slot index and enhanced with auto-advance/paste in `public/assets/otp.js`.
+
+---
+
+## ADR-011: Portable one-owner-per-team key (numeric flag instead of a CHAR copy)
+
+**Status:** accepted.
+
+**Context.** `0001_init.sql` enforced one owner per team with
+`owner_scope CHAR(36) AS (IF(role = 'owner', team_id, NULL)) PERSISTENT` plus a unique index on `owner_scope`.
+That schema dumped from MariaDB 10.4 and imported fine there, but failed on MariaDB 10.5+ with:
+
+```text
+ERROR 1901 (HY000): Function or expression 'if(`role` = 'owner',`team_id`,NULL)'
+cannot be used in the GENERATED ALWAYS AS clause of `owner_scope`
+```
+
+MariaDB reports the underlying reason as `Warning 1105: Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH`.
+The expression is CHAR-typed over a CHAR column, so its padding semantics change with that sql_mode; since 10.5, MariaDB treats sql_mode-dependent expressions in STORED or indexed generated columns as unsafe and refuses the DDL. The XAMPP server here is MariaDB 10.4, where the same expression only warns — which is why development never noticed and only the import on a newer server failed.
+
+**Decision.** `owner_scope` is now `TINYINT AS (IF(role = 'owner', 1, NULL)) PERSISTENT` and the unique key is `(team_id, owner_scope)`. NULLs repeat freely in a unique index, so only owner rows are constrained: at most one owner per team, the same invariant, with no string typing and no sql_mode dependency.
+
+- `migrations/0001_init.sql` creates the new shape directly, so fresh installs and fresh imports are correct.
+- `migrations/0008_owner_scope_portability.sql` drops and re-adds the column and index, so databases created from the older `0001` converge on the same table.
+- Future generated columns must use numeric/boolean expressions (or explicit non-CHAR casts), never a CHAR copy of another column.
+
+**Consequences.**
+
+- (+) Schema dumps import on MariaDB 10.4 through 11.4. Verified against MariaDB 11.4: both `bin/migrate.php` on an empty database and a `mysqldump` import of the full schema succeed, and a second owner still fails with `Duplicate entry ... for key 'uq_team_members_single_owner'`.
+- (+) The invariant stays database-enforced, including under concurrent inserts.
+- (−) `owner_scope` no longer stores the team id. No application code read it; a future query that wants the owner's team id must use `team_id`.

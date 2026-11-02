@@ -131,7 +131,7 @@ php bin/seed.php      # idempotent seed data
 ```
 
 The migration ledger (`schema_migrations`) is included in the dump, so after
-importing it the app considers migrations 0001–0006 already applied.
+importing it the app considers migrations 0001–0008 already applied.
 
 ## 4b. Import the dump from the browser (no phpMyAdmin, no SSH)
 

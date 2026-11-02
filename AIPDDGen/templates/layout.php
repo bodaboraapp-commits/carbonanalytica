@@ -36,6 +36,7 @@ if (PHP_SAPI !== 'cli') {
     <meta name="description" content="<?= e(t('app.tagline')) ?>">
     <title><?= e($siteTitle) ?></title>
     <link rel="stylesheet" href="<?= e(asset('app.css')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('motion.css')) ?>">
 </head>
 <body>
 <a class="skip-link" href="#main"><?= e(t('app.skip_to_content')) ?></a>
@@ -105,5 +106,6 @@ if (PHP_SAPI !== 'cli') {
         </nav>
     </div>
 </footer>
+<script src="<?= e(asset('app.js')) ?>" defer></script>
 </body>
 </html>

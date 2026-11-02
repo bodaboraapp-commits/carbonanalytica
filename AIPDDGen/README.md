@@ -152,7 +152,7 @@ public/index.php
 ## Testing
 
 ```powershell
-php bin/test.php            # 85 tests
+php bin/test.php            # 154 tests
 powershell -File tools/e2e-smoke.ps1
 ```
 
@@ -206,12 +206,22 @@ Out of scope for the MVP (per PRD): other registries, public template marketplac
 - XAMPP's PHP prints `Module "openssl" is already loaded` on startup. It is a duplicate `extension=openssl` line in `C:\xampp\php\php.ini`, harmless, and outside the project.
 - MariaDB here listens on **3307** (set in `C:\xampp\mysql\bin\my.ini`); the app reads `DB_PORT`.
 - Runtime files live under `storage/`; `storage/sessions` holds PHP session files so they stay inside the project.
+- MariaDB here is **10.4**, but the schema must stay importable on newer servers: MariaDB 10.5+ refuses sql_mode-dependent expressions in STORED generated columns (`ERROR 1901`), so generated columns use numeric flags — see [ADR-011](docs/decisions.md#adr-011-portable-one-owner-per-team-key-numeric-flag-instead-of-a-char-copy). After importing a dump into a newer MariaDB, run `php bin/migrate.php` to apply any pending portability migrations.
 - `.env.local` configures Resend (`EMAIL_TRANSPORT=resend`, `RESEND_API_KEY`, `RESEND_FROM`). The sending domain must be verified in the Resend account; a send-only API key is enough. Fixture domains (`pddgen.local`, `example.com`, `example.org`) never reach the provider, and outside production the message body is mirrored to `storage/logs/mail.log`.
+
+---
+
+## Design system & motion
+
+- **Typography:** *Manrope* for display headings and numeric stats, *Inter* for body text — both self-hosted variable WOFF2 fonts in `public/assets/fonts/` (no CDN, so the `self` CSP policy stays intact), declared in `public/assets/motion.css`.
+- **Motion:** subtle entrance fades and staggers, hover lift on cards/buttons, side-panel slide-in, a pulsing SLA badge, count-up on dashboard numbers and scroll-in reveals. Implemented with CSS animations/transitions plus dependency-free `public/assets/app.js`. This is presentation only — no requirement or behaviour changes.
+- **Accessibility:** all animation is disabled under `prefers-reduced-motion: reduce`; pages remain fully usable with JavaScript disabled (reveal/count-up are progressive enhancement).
 
 ---
 
 ## Documentation
 
+- [AI agents](AGENTS.md) — entry point for coding agents (rules, commands, write scopes, execution note); full playbook in [docs/ai-agents.md](docs/ai-agents.md).
 - [PRD](docs/PRD.md) — product requirements (source of truth).
 - [Data model](docs/data-model.md) — tables, invariants, roles, traceability.
 - [Decisions](docs/decisions.md) — architecture decision records.

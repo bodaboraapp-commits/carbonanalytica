@@ -29,6 +29,7 @@ foreach ([1, 2, 3] as $orgStep) {
 
 $metrics = $workspace['metrics'];
 $attention = $workspace['attention'];
+$people = $workspace['people'];
 $canManageMembers = (bool) $workspace['can_manage_members'];
 ?>
 <div class="admin-page-head">
@@ -163,6 +164,56 @@ $canManageMembers = (bool) $workspace['can_manage_members'];
         <span class="kpi-card__label"><?= e(t('workspace.kpi_facts')) ?></span>
         <span class="kpi-card__value"><?= e((string) $metrics['facts_confirmed']) ?></span>
     </article>
+</section>
+
+<section class="panel-card" id="workspace-team" aria-labelledby="workspace-team-title">
+    <div class="panel-card__head">
+        <h2 id="workspace-team-title"><?= e(t('workspace.team_title')) ?></h2>
+        <a class="admin-link-arrow" href="<?= e(url('/team')) ?>"><?= e(t('workspace.team_manage')) ?> <span aria-hidden="true">&#8594;</span></a>
+    </div>
+    <div class="console-columns">
+        <div>
+            <h3 class="team-group__title">
+                <?= e(t('workspace.team_creators')) ?>
+                <span class="muted">· <?= e((string) $people['creators_count']) ?></span>
+            </h3>
+            <ul class="summary-list">
+                <?php foreach ($people['creators'] as $member): ?>
+                    <li class="summary-list__item">
+                        <span class="summary-list__main">
+                            <strong><?= e((string) $member['name']) ?></strong>
+                            <span class="admin-muted"><?= e((string) $member['email']) ?></span>
+                        </span>
+                        <span class="badge"><?= e(t(role_key((string) $member['role']))) ?></span>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
+        <div>
+            <h3 class="team-group__title">
+                <?= e(t('workspace.team_staff')) ?>
+                <span class="muted">· <?= e((string) $people['staff_count']) ?></span>
+            </h3>
+            <?php if ($people['staff'] === []): ?>
+                <p class="admin-muted"><?= e(t('workspace.team_staff_empty')) ?></p>
+                <?php if ($canManageMembers): ?>
+                    <a class="btn btn--secondary btn--sm" href="<?= e(url('/team')) ?>"><?= e(t('workspace.team_invite')) ?></a>
+                <?php endif; ?>
+            <?php else: ?>
+                <ul class="summary-list">
+                    <?php foreach ($people['staff'] as $member): ?>
+                        <li class="summary-list__item">
+                            <span class="summary-list__main">
+                                <strong><?= e((string) $member['name']) ?></strong>
+                                <span class="admin-muted"><?= e((string) $member['email']) ?></span>
+                            </span>
+                            <span class="badge badge--neutral"><?= e(t(role_key((string) $member['role']))) ?></span>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+        </div>
+    </div>
 </section>
 
 <div class="app-head" id="projects">

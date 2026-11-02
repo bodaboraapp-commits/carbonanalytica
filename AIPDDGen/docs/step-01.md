@@ -14,7 +14,7 @@
 
 Highlights:
 
-- case-insensitive unique emails, one owner per team and one live invitation per email, all enforced by the database (generated columns + unique indexes, because MySQL has no partial indexes);
+- case-insensitive unique emails, one owner per team and one live invitation per email, all enforced by the database (generated columns + unique indexes, because MySQL has no partial indexes; the owner key uses a numeric flag so the schema imports on MariaDB 10.5+, see ADR-011);
 - every tenant-owned row carries `team_id` and cascades from `teams`;
 - drafts cannot exist without an approved fact-sheet version and a recorded template version;
 - template rules (date format, number format, figure/table IDs) are stored as JSON data per section.

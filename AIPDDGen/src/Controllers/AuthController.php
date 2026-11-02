@@ -12,6 +12,7 @@ use App\Http;
 use App\I18n;
 use App\Session;
 use App\Services\AuthService;
+use App\Services\PlatformSettingsService;
 use App\Tenancy;
 use App\Validator;
 
@@ -95,6 +96,10 @@ final class AuthController extends Controller
         if (Auth::pending() !== null) {
             Http::redirect('/verify-otp');
         }
+        if (!PlatformSettingsService::signupsEnabled()) {
+            $this->flash('error', t('flash.signups_closed'));
+            Http::redirect('/login');
+        }
 
         \App\View::render('pages/signup', [
             'name' => '',
@@ -107,6 +112,11 @@ final class AuthController extends Controller
 
     public function signup(array $params): never
     {
+        if (!PlatformSettingsService::signupsEnabled()) {
+            $this->flash('error', t('flash.signups_closed'));
+            Http::redirect('/login');
+        }
+
         $next = $this->safeNext(is_string($_POST['next'] ?? null) ? $_POST['next'] : null);
         $name = (string) (Http::input('name') ?? '');
         $email = (string) (Http::input('email') ?? '');

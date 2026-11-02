@@ -26,6 +26,7 @@ return [
             'projects', 'inputs', 'facts', 'fact_sheet_versions',
             'drafts', 'draft_sections', 'draft_versions', 'comments',
             'gap_reports', 'gap_items', 'audit_logs', 'schema_migrations',
+            'platform_settings',
         ];
 
         foreach ($expected as $table) {
@@ -116,5 +117,33 @@ return [
         );
         $indexes = array_map(static fn (array $row): string => (string) $row['index_name'], $rows);
         assert_true(in_array('uq_team_members_single_owner', $indexes, true));
+    },
+
+    'keeps the single-owner key portable across MariaDB versions' => static function (): void {
+        // The flag must be numeric: a CHAR expression over `team_id` depends on
+        // sql_mode=PAD_CHAR_TO_FULL_LENGTH, and MariaDB 10.5+ refuses that in a
+        // STORED generated column (error 1901), so such a schema cannot be
+        // imported (migration 0007 / ADR-011).
+        $column = Db::selectOne(
+            "SELECT data_type, generation_expression FROM information_schema.columns
+             WHERE table_schema = DATABASE() AND table_name = 'team_members' AND column_name = 'owner_scope'",
+        );
+        assert_not_null($column);
+        assert_same('tinyint', strtolower((string) $column['data_type']));
+        assert_true(
+            !str_contains(strtolower((string) $column['generation_expression']), 'team_id'),
+            'owner_scope must be a flag, not a copy of a CHAR column',
+        );
+
+        $indexColumns = Db::select(
+            "SELECT column_name FROM information_schema.statistics
+             WHERE table_schema = DATABASE() AND table_name = 'team_members'
+               AND index_name = 'uq_team_members_single_owner'
+             ORDER BY seq_in_index",
+        );
+        assert_same(
+            ['team_id', 'owner_scope'],
+            array_map(static fn (array $row): string => (string) $row['column_name'], $indexColumns),
+        );
     },
 ];

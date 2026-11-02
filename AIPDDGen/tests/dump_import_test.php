@@ -77,7 +77,7 @@ return [
 
         // The dump marks migrations 0001-0006 as applied, so the app sees a
         // fully migrated database.
-        assert_same(6, count_rows('schema_migrations'));
+        assert_same(count(glob(APP_ROOT . '/migrations/*.sql') ?: []), count_rows('schema_migrations'));
 
         // The dump rebuilds the users table, so continuing as its admin account.
         $admin = UserRepository::findByEmail('admin@pddgen.local');

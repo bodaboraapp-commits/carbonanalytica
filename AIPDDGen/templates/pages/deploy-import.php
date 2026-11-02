@@ -22,8 +22,9 @@ $loginUrl = url('/login');
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
-    <title><?= e(t('deploy.title')) ?> · <?= e(t('app.name')) ?></title>
+    <title><?= e(t('deploy.title')) ?> Â· <?= e(t('app.name')) ?></title>
     <link rel="stylesheet" href="<?= e(url('/assets/app.css')) ?>">
+    <link rel="stylesheet" href="<?= e(url('/assets/motion.css')) ?>">
 </head>
 <body class="deploy-import">
 <main class="deploy-import__wrap">
@@ -67,7 +68,7 @@ $loginUrl = url('/login');
             </div>
             <div class="meta-item">
                 <dt><?= e(t('deploy.statements')) ?></dt>
-                <dd><?= e((string) $state['statements']) ?> · <?= e((string) $state['dump_tables']) ?> tables</dd>
+                <dd><?= e((string) $state['statements']) ?> Â· <?= e((string) $state['dump_tables']) ?> tables</dd>
             </div>
         </dl>
 

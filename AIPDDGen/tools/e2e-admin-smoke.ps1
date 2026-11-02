@@ -72,14 +72,36 @@ Check 'staff sign in redirects' ($staffLogin.Status -eq 303) "status=$($staffLog
 
 Write-Output '--- Platform console overview ---'
 $dashboard = Invoke-Request '/admin' -Session $staff
-Check 'platform console renders' ($dashboard.Status -eq 200 -and $dashboard.Content -match 'Platform console')
-Check 'KPI tiles present' ($dashboard.Content -match 'Total workspaces')
-Check 'quick links present' ($dashboard.Content -match 'Jump to')
-Check 'KYC preview present' ($dashboard.Content -match 'KYC waiting for review')
+Check 'super admin dashboard renders' ($dashboard.Status -eq 200 -and $dashboard.Content -match 'Super admin dashboard')
+Check 'KPI tiles present' ($dashboard.Content -match 'Platform statistics')
+Check 'growth stats present' ($dashboard.Content -match 'Growth and activity')
+Check 'system health present' ($dashboard.Content -match 'System health')
+Check 'platform controls present' ($dashboard.Content -match 'Platform controls' -and $dashboard.Content -match 'Maintenance mode')
+Check 'quick actions present' ($dashboard.Content -match 'Review KYC' -and $dashboard.Content -match 'Open queue')
+Check 'KYC status present' ($dashboard.Content -match 'KYC waiting')
 Check 'recent activity present' ($dashboard.Content -match 'Recent activity')
 Check 'security card present' ($dashboard.Content -match 'Two-factor sign-in')
 Check 'left side-panel menu present' ($dashboard.Content -match 'admin-sidebar' -and $dashboard.Content -match 'admin-nav-group__title')
 Check 'mobile menu toggle present' ($dashboard.Content -match 'admin-nav-toggle-input')
+
+Write-Output '--- platform controls ---'
+$adminCsrf = Get-CsrfToken $dashboard.Content
+$guest = New-Client
+$guestHome = Invoke-Request '/' -Session $guest
+Check 'guest home is live before maintenance' ($guestHome.Status -eq 200)
+Invoke-Request '/admin/settings/maintenance_mode' -Session $staff -Method POST -Body @{
+    _csrf = $adminCsrf; value = '1'
+} | Out-Null
+$guestBlocked = Invoke-Request '/' -Session $guest -NoRedirect
+Check 'guest gets 503 in maintenance mode' ($guestBlocked.Status -eq 503)
+$staffDuring = Invoke-Request '/admin' -Session $staff
+Check 'staff keep access during maintenance' ($staffDuring.Status -eq 200)
+$offCsrf = Get-CsrfToken $staffDuring.Content
+Invoke-Request '/admin/settings/maintenance_mode' -Session $staff -Method POST -Body @{
+    _csrf = $offCsrf; value = '0'
+} | Out-Null
+$guestBack = Invoke-Request '/' -Session $guest
+Check 'guest home restored after maintenance' ($guestBack.Status -eq 200)
 
 $consolePages = @{
     '/admin/workspaces' = 'Workspaces'

@@ -121,10 +121,16 @@ CREATE TABLE team_members (
     joined_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-    owner_scope CHAR(36) AS (IF(role = 'owner', team_id, NULL)) PERSISTENT,
+    -- One owner per team: a numeric flag (1 for the owner, NULL for everyone
+    -- else) plus a unique (team_id, owner_scope). The flag is numeric on
+    -- purpose: a CHAR expression over team_id depends on
+    -- sql_mode=PAD_CHAR_TO_FULL_LENGTH, and MariaDB 10.5+ rejects such
+    -- expressions in STORED generated columns (error 1901). NULLs repeat
+    -- freely in a unique index, so non-owners are unconstrained.
+    owner_scope TINYINT AS (IF(role = 'owner', 1, NULL)) PERSISTENT,
     PRIMARY KEY (id),
     UNIQUE KEY uq_team_members_team_user (team_id, user_id),
-    UNIQUE KEY uq_team_members_single_owner (owner_scope),
+    UNIQUE KEY uq_team_members_single_owner (team_id, owner_scope),
     KEY idx_team_members_user (user_id),
     KEY idx_team_members_team (team_id),
     CONSTRAINT fk_team_members_team FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE CASCADE,

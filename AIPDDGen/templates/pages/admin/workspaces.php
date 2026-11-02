@@ -69,7 +69,8 @@ $kycBadge = static function (string $status): string {
                     <tr>
                         <th scope="col"><?= e(t('console.table_workspace')) ?></th>
                         <th scope="col"><?= e(t('console.table_kyc')) ?></th>
-                        <th scope="col"><?= e(t('console.table_members')) ?></th>
+                        <th scope="col"><?= e(t('console.table_creator')) ?></th>
+                        <th scope="col"><?= e(t('console.table_staff')) ?></th>
                         <th scope="col"><?= e(t('console.table_projects')) ?></th>
                         <th scope="col"><?= e(t('console.table_created')) ?></th>
                         <th scope="col"><?= e(t('console.table_activity')) ?></th>
@@ -87,7 +88,11 @@ $kycBadge = static function (string $status): string {
                             <td>
                                 <span class="badge <?= e($kycBadge($kycStatus)) ?>"><?= e(t('console.kyc_status_' . $kycStatus)) ?></span>
                             </td>
-                            <td><?= e((string) $row['members']) ?></td>
+                            <td>
+                                <strong class="admin-task-title"><?= e((string) ($row['creator_name'] ?? t('console.no_creator'))) ?></strong>
+                                <span class="admin-task-meta"><?= e((string) $row['creators']) ?> <?= e(t('console.admins_label')) ?></span>
+                            </td>
+                            <td><?= e((string) $row['staff']) ?></td>
                             <td><?= e((string) $row['projects']) ?></td>
                             <td class="admin-muted"><?= e(format_date((string) $row['created_at'])) ?></td>
                             <td class="admin-muted"><?= e($row['last_activity'] !== null ? format_date((string) $row['last_activity']) : t('console.never')) ?></td>

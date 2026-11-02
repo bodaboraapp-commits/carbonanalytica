@@ -448,7 +448,7 @@ if ($staffLogin.Status -eq 303 -and $staffLogin.Location -like '*/verify-otp*') 
 Check 'staff account signs in with the password' ($staffLogin.Status -eq 303 -and $staffLogin.Location -like '*/dashboard*') "location=$($staffLogin.Location)"
 
 $staffAdmin = Invoke-Request '/admin' -Session $staff
-Check 'staff console shows the security panel' ($staffAdmin.Status -eq 200 -and $staffAdmin.Content -match 'Sign-in security')
+Check 'staff console shows the security panel' ($staffAdmin.Status -eq 200 -and $staffAdmin.Content -match 'Two-factor sign-in')
 $staffAdminToken = Get-CsrfToken $staffAdmin.Content
 if ($staffAdmin.Content -match 'Turn off two-factor') {
     # Normalise a leftover setting before testing the switch.

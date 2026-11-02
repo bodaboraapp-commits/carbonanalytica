@@ -61,6 +61,32 @@ final class WorkspaceDashboardService
             [$teamId],
         );
 
+        // Who runs the workspace: admins/creator vs staff/workers.
+        $memberRows = Db::select(
+            "SELECT tm.role, tm.created_at, u.id, u.name, u.email
+             FROM team_members tm
+             INNER JOIN users u ON u.id = tm.user_id
+             WHERE tm.team_id = ? AND tm.status = 'active' AND u.deleted_at IS NULL
+             ORDER BY FIELD(tm.role, 'owner', 'admin', 'editor', 'viewer'), u.name",
+            [$teamId],
+        );
+        $creators = [];
+        $staff = [];
+        foreach ($memberRows as $member) {
+            $memberRole = (string) $member['role'];
+            $entry = [
+                'id' => (string) $member['id'],
+                'name' => (string) $member['name'],
+                'email' => (string) $member['email'],
+                'role' => $memberRole,
+            ];
+            if ($memberRole === 'owner' || $memberRole === 'admin') {
+                $creators[] = $entry;
+            } else {
+                $staff[] = $entry;
+            }
+        }
+
         return [
             'metrics' => $metrics,
             'by_status' => array_map(
@@ -70,6 +96,12 @@ final class WorkspaceDashboardService
                 ],
                 $byStatus,
             ),
+            'people' => [
+                'creators' => $creators,
+                'staff' => $staff,
+                'creators_count' => count($creators),
+                'staff_count' => count($staff),
+            ],
             'role' => $role,
             'can_edit' => Tenancy::roleAtLeast($role, 'editor'),
             'can_manage_members' => Tenancy::roleAtLeast($role, 'admin'),

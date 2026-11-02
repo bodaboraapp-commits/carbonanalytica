@@ -8,11 +8,13 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/src/bootstrap.php';
 
 use App\AppError;
+use App\Auth;
 use App\Config;
 use App\Csrf;
 use App\I18n;
 use App\Http;
 use App\Router;
+use App\Services\PlatformSettingsService;
 use App\View;
 
 // Security headers that cost nothing and close common browser-side holes.
@@ -26,6 +28,22 @@ header(
 );
 
 try {
+    // Platform-wide maintenance mode (Super Admin control). Staff keep full
+    // access; sign-in and health checks stay reachable so staff can get in.
+    $requestPath = Http::path();
+    $maintenanceOpen = in_array($requestPath, ['/login', '/api/health'], true)
+        || str_starts_with($requestPath, '/auth/')
+        || str_starts_with($requestPath, '/deploy/');
+    if (!$maintenanceOpen && PlatformSettingsService::maintenanceMode()) {
+        $sessionUser = Auth::user();
+        $isStaff = $sessionUser !== null && (int) ($sessionUser['is_platform_admin'] ?? 0) === 1;
+        if (!$isStaff) {
+            http_response_code(503);
+            header('Retry-After: 600');
+            View::render('pages/maintenance', [], null);
+        }
+    }
+
     // A body larger than post_max_size arrives with empty $_POST and $_FILES.
     // Report it as an oversized upload instead of a confusing CSRF failure.
     if (Http::isPost() && $_POST === [] && $_FILES === [] && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {

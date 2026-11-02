@@ -34,7 +34,17 @@ if (is_readable($envFile)) {
 
 $deployToken = (string) ($env['DEPLOY_TOKEN'] ?? getenv('DEPLOY_TOKEN') ?: '');
 $provided = (string) ($_GET['token'] ?? '');
-if ($deployToken !== '' && !hash_equals($deployToken, $provided)) {
+$appEnv = (string) ($env['APP_ENV'] ?? getenv('APP_ENV') ?: 'development');
+
+if ($deployToken !== '') {
+    if (!hash_equals($deployToken, $provided)) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'Not found';
+        exit;
+    }
+} elseif ($appEnv === 'production') {
+    // Never expose deployment internals on a production host without a token.
     http_response_code(404);
     header('Content-Type: text/plain; charset=utf-8');
     echo 'Not found';
@@ -67,8 +77,23 @@ $add('.env.local present', is_file($envFile), is_file($envFile) ? $envFile : 'MI
 foreach (['logs', 'sessions', 'uploads'] as $dir) {
     $path = $root . '/storage/' . $dir;
     $exists = is_dir($path);
-    $writable = $exists && is_writable($path);
-    $add("storage/{$dir} writable", $writable, $exists ? ($writable ? 'writable' : 'NOT WRITABLE — chmod 775 and check the owner') : 'MISSING — create the directory');
+    // is_writable() can lie under Windows ACLs / sandboxes, so prove it with a
+    // real create + delete probe.
+    $writable = false;
+    if ($exists) {
+        $probe = @tempnam($path, 'pdd-health-');
+        if ($probe !== false) {
+            $writable = @file_put_contents($probe, 'ok') !== false;
+            @unlink($probe);
+        }
+    }
+    $add(
+        "storage/{$dir} writable",
+        $writable,
+        $exists
+            ? ($writable ? 'writable (create/write/delete probe passed)' : 'NOT WRITABLE — chmod 775 and check the owner')
+            : 'MISSING — create the directory',
+    );
 }
 
 // Configuration summary (never print secrets).

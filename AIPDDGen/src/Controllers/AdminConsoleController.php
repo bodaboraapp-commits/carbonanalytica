@@ -8,6 +8,7 @@ use App\AppError;
 use App\Http;
 use App\I18n;
 use App\Services\PlatformConsoleService;
+use App\Services\PlatformSettingsService;
 use App\Services\TaskCenterService;
 use App\View;
 
@@ -109,6 +110,33 @@ final class AdminConsoleController extends Controller
         }
 
         Http::redirect('/admin/users');
+    }
+
+    /** Turn a platform-wide control (maintenance mode, sign-ups) on or off. */
+    public function toggleSetting(array $params): never
+    {
+        $user = $this->staff();
+
+        $key = (string) ($params['key'] ?? '');
+        if (!in_array($key, PlatformSettingsService::editableKeys(), true)) {
+            Http::redirect('/admin');
+        }
+
+        $enabled = (string) (Http::input('value') ?? '') === '1';
+
+        try {
+            PlatformSettingsService::setEnabled((string) $user['id'], $key, $enabled);
+            $this->flash('success', t($enabled ? 'flash.setting_enabled' : 'flash.setting_disabled', [
+                'setting' => t('super.' . $key),
+            ]));
+        } catch (AppError $error) {
+            $this->flash('error', I18n::error($error->errorCode));
+        } catch (\Throwable $error) {
+            error_log('[pdd] toggle setting failed: ' . $error->getMessage());
+            $this->flash('error', t('flash.setting_missing'));
+        }
+
+        Http::redirect('/admin');
     }
 
     /** @return array<string, mixed> */

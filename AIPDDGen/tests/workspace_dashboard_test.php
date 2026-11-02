@@ -103,4 +103,40 @@ return [
         assert_false($dashboard['can_edit']);
         assert_false($dashboard['can_manage_members']);
     },
+
+    'every workspace exposes its admin/creator and staff/workers' => static function (): void {
+        $owner = make_user('ws-crew-owner@example.com');
+        $teamId = (string) $owner['team']['id'];
+
+        // The creator always exists as the owner membership.
+        $initial = WorkspaceDashboardService::forTeam((string) $owner['user']['id'], ['id' => $teamId]);
+        assert_same(1, $initial['people']['creators_count']);
+        assert_same(0, $initial['people']['staff_count']);
+        assert_same('owner', $initial['people']['creators'][0]['role']);
+
+        $admin = add_team_member($teamId, (string) $owner['user']['id'], 'ws-crew-admin@example.com', 'admin');
+        $editor = add_team_member($teamId, (string) $owner['user']['id'], 'ws-crew-editor@example.com', 'editor');
+        $viewer = add_team_member($teamId, (string) $owner['user']['id'], 'ws-crew-viewer@example.com', 'viewer');
+
+        $dashboard = WorkspaceDashboardService::forTeam((string) $admin['user']['id'], ['id' => $teamId]);
+        $people = $dashboard['people'];
+
+        assert_same(2, $people['creators_count'], 'owner + admin are admins/creators');
+        assert_same(2, $people['staff_count'], 'editor + viewer are staff/workers');
+
+        $creatorRoles = array_column($people['creators'], 'role');
+        sort($creatorRoles);
+        assert_same(['admin', 'owner'], $creatorRoles);
+
+        $staffRoles = array_column($people['staff'], 'role');
+        sort($staffRoles);
+        assert_same(['editor', 'viewer'], $staffRoles);
+
+        // Labels used by the UI map to the product language.
+        assert_same('Admin/Creator', t('team.role_owner'));
+        assert_same('Staff/Worker', t('team.role_editor'));
+
+        assert_not_null($editor['user']['id']);
+        assert_not_null($viewer['user']['id']);
+    },
 ];

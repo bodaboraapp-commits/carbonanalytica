@@ -47,6 +47,7 @@ $navLink = static function (string $href, string $label, bool $active, int $badg
     <meta name="robots" content="noindex, nofollow">
     <title><?= e($adminTitle) ?></title>
     <link rel="stylesheet" href="<?= e(asset('app.css')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('motion.css')) ?>">
 </head>
 <body class="admin-body">
 <a class="skip-link" href="#main"><?= e(t('app.skip_to_content')) ?></a>
@@ -155,5 +156,6 @@ $navLink = static function (string $href, string $label, bool $active, int $badg
         <span><?= e(t('landing.footer_note')) ?></span>
     </div>
 </footer>
+<script src="<?= e(asset('app.js')) ?>" defer></script>
 </body>
 </html>

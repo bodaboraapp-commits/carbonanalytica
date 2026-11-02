@@ -45,11 +45,19 @@ return [
     'overview reports platform-wide numbers and plan distribution' => static function (): void {
         $staff = make_console_staff('console-overview@example.com');
         $owner = make_user('console-ws@example.com');
+        // The owner counts as a creator; add an editor so the staff total is >= 1.
+        add_team_member((string) $owner['team']['id'], (string) $owner['user']['id'], 'console-overview-editor@example.com', 'editor');
 
         $overview = PlatformConsoleService::overview((string) $staff['user']['id']);
 
         foreach (['workspaces', 'projects', 'people', 'open_tasks', 'templates_published', 'organisations_submitted', 'verified_orgs'] as $key) {
             assert_true(array_key_exists($key, $overview['metrics']), 'missing metric ' . $key);
+        }
+        // Platform-wide people totals: Admin/Creators + Staff/Workers.
+        foreach (['creators_total', 'staff_total'] as $key) {
+            assert_true(array_key_exists($key, $overview['metrics']), 'missing metric ' . $key);
+            assert_true(is_int($overview['metrics'][$key]), $key . ' must be an integer');
+            assert_true($overview['metrics'][$key] >= 1, $key . ' must count at least one active member');
         }
         assert_true($overview['metrics']['workspaces'] >= 2);
         assert_true(isset($overview['plans']['free']));
@@ -78,6 +86,11 @@ return [
         $search = PlatformConsoleService::workspaces((string) $staff['user']['id'], ['q' => 'Acme']);
         assert_same(1, $search['total']);
         assert_same('submitted', (string) $search['rows'][0]['kyc_status']);
+
+        // Each row names its admin/creator and counts staff/workers.
+        assert_same((string) $alice['user']['name'], (string) $search['rows'][0]['creator_name']);
+        assert_true((int) $search['rows'][0]['creators'] >= 1);
+        assert_same(0, (int) $search['rows'][0]['staff']);
 
         $submitted = PlatformConsoleService::workspaces((string) $staff['user']['id'], ['kyc' => 'submitted']);
         assert_same(1, $submitted['total']);

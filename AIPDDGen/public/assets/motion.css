@@ -1,0 +1,264 @@
+/* ==========================================================================
+   Motion & typography layer
+   Self-hosted variable fonts + entrance/hover motion inspired by the
+   reference dashboard animation. No product behaviour is defined here.
+   ========================================================================== */
+
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("fonts/manrope-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("fonts/manrope-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("fonts/inter-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("fonts/inter-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+  --font-sans: "Inter", ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Manrope", "Inter", ui-sans-serif, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Manrope", "Inter", ui-sans-serif, -apple-system, "Segoe UI", sans-serif;
+  --ease-out-spring: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--font-sans);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+.brand__mark,
+.admin-brand__text strong,
+.kpi-card__value,
+.pipeline-card__value,
+.attention-tile__value,
+.meta-item dd,
+.workspace-pill {
+  font-family: var(--font-display);
+  font-feature-settings: "ss01" 1, "cv11" 1;
+}
+
+h1,
+h2 {
+  letter-spacing: -0.022em;
+}
+
+h3,
+h4 {
+  letter-spacing: -0.012em;
+}
+
+.kpi-card__value,
+.pipeline-card__value,
+.attention-tile__value,
+.meta-item dd {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* --------------------------------------------------------------------------
+   Entrance motion
+   -------------------------------------------------------------------------- */
+
+@keyframes pdd-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pdd-fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes pdd-scale-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes pdd-slide-in {
+  from { opacity: 0; transform: translateX(-14px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes pdd-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(165, 40, 31, 0.35); }
+  50% { box-shadow: 0 0 0 6px rgba(165, 40, 31, 0); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  body {
+    animation: pdd-fade-in 0.3s ease-out both;
+  }
+
+  .card,
+  .panel-card,
+  .kpi-card,
+  .pipeline-card,
+  .quick-link,
+  .project-card,
+  .admin-page-head,
+  .admin-filters {
+    animation: pdd-fade-up 0.55s var(--ease-out-spring) both;
+  }
+
+  .attention-tile {
+    animation: pdd-scale-in 0.5s var(--ease-out-spring) both;
+  }
+
+  .admin-sidebar {
+    animation: pdd-slide-in 0.5s var(--ease-out-spring) both;
+  }
+
+  .nav__link,
+  .nav__link--cta {
+    animation: pdd-fade-in 0.5s ease-out both;
+  }
+
+  /* Soft stagger for card grids and lists. */
+  .kpi-grid > *:nth-child(1),
+  .pipeline-cards > *:nth-child(1),
+  .quick-links > *:nth-child(1),
+  .attention-grid > *:nth-child(1),
+  .project-list > *:nth-child(1) { animation-delay: 0.02s; }
+  .kpi-grid > *:nth-child(2),
+  .pipeline-cards > *:nth-child(2),
+  .quick-links > *:nth-child(2),
+  .attention-grid > *:nth-child(2),
+  .project-list > *:nth-child(2) { animation-delay: 0.08s; }
+  .kpi-grid > *:nth-child(3),
+  .pipeline-cards > *:nth-child(3),
+  .quick-links > *:nth-child(3),
+  .attention-grid > *:nth-child(3),
+  .project-list > *:nth-child(3) { animation-delay: 0.14s; }
+  .kpi-grid > *:nth-child(4),
+  .pipeline-cards > *:nth-child(4),
+  .quick-links > *:nth-child(4),
+  .project-list > *:nth-child(4) { animation-delay: 0.2s; }
+  .quick-links > *:nth-child(5),
+  .project-list > *:nth-child(5) { animation-delay: 0.26s; }
+  .quick-links > *:nth-child(6),
+  .project-list > *:nth-child(6) { animation-delay: 0.32s; }
+
+  .admin-nav-link,
+  .admin-actions__link,
+  .nav__link,
+  .btn {
+    transition:
+      background-color 0.18s ease,
+      color 0.18s ease,
+      transform 0.18s var(--ease-out-spring),
+      box-shadow 0.18s ease,
+      border-color 0.18s ease;
+  }
+
+  .btn:hover {
+    transform: translateY(-1px);
+  }
+
+  .btn:active {
+    transform: translateY(0) scale(0.99);
+  }
+
+  .kpi-card,
+  .pipeline-card,
+  .quick-link,
+  .project-card,
+  .attention-tile,
+  .summary-list__item {
+    transition:
+      transform 0.22s var(--ease-out-spring),
+      box-shadow 0.22s ease,
+      border-color 0.22s ease,
+      background-color 0.22s ease;
+  }
+
+  .kpi-card:hover,
+  .project-card:hover,
+  .quick-link:hover,
+  .attention-tile:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+  }
+
+  .admin-nav-link:hover {
+    transform: translateX(2px);
+  }
+
+  .summary-list__item:hover {
+    background: color-mix(in srgb, var(--brand-soft) 45%, transparent);
+  }
+
+  .admin-alert__badge {
+    animation: pdd-pulse 2.4s ease-in-out infinite;
+  }
+
+  .alert,
+  .flash {
+    animation: pdd-fade-up 0.35s var(--ease-out-spring) both;
+  }
+
+  /* Scroll-in reveal, enabled by app.js only when JavaScript is available. */
+  .has-reveal .reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    transition:
+      opacity 0.55s var(--ease-out-spring),
+      transform 0.55s var(--ease-out-spring);
+  }
+
+  .has-reveal .reveal.is-visible {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
